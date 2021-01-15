@@ -1,0 +1,1364 @@
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+	pageEncoding="UTF-8"%>
+<%@taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c"%>
+<%@taglib uri="http://java.sun.com/jsp/jstl/functions" prefix="fn"%>
+<%@taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt"%>
+<%@taglib uri="http://www.springframework.org/tags" prefix="spring"%>
+<%@taglib uri="http://www.springframework.org/tags/form" prefix="form"%>
+<script type="text/javascript">
+//============= Loadfactor=================================================================
+var plusIconPath = "path://m408 184h-136c-4.417969 0-8-3.582031-8-8v-136c0-22.089844-17.910156-40-40-40s-40 17.910156-40 40v136c0 4.417969-3.582031 8-8 8h-136c-22.089844 0-40 17.910156-40 40s17.910156 40 40 40h136c4.417969 0 8 3.582031 8 8v136c0 22.089844 17.910156 40 40 40s40-17.910156 40-40v-136c0-4.417969 3.582031-8 8-8h136c22.089844 0 40-17.910156 40-40s-17.910156-40-40-40zm0 0";
+var idx = 1; // java에서 넘겨받은 idx로 타이틀 생성
+
+var pkg4Jsn = {
+		<c:forEach var="i" items="${dvcList}" varStatus="idx">
+			unit${idx.index+1} : {
+				name: '${i.dvc_nm}',
+				dvc_id : '${i.dvc_id}'
+			},
+		</c:forEach>
+}
+	
+var loadfactor_type = '${bean.loadfactor_type}';
+var tree_nm = '${bean.tree_nm}';
+loadfactor_type = ClString.isEmpty(loadfactor_type)?"LOAD_FACTOR":loadfactor_type;
+var tree_nm = ClString.isEmpty(tree_nm)?"CWA_PKG4":tree_nm;
+var parent_url = '${bean.parent_url}';
+
+
+var var_nm = "";
+var var_id = ""; //메인 차트에서 클릭한 xAxis 이름
+var dvc_id = pkg4Jsn["unit"+idx].dvc_id;
+var dvc_nm = pkg4Jsn["unit"+idx].name;
+
+var yyyy = "${YYYY}";
+var mmdd = "${mmdd}";
+
+//메인 차트 기준 날짜
+var baseDate = new Date();
+var mainDate = new Date((new Date()).getFullYear(), mmdd.split('/')[0]-1, mmdd.split('/')[1]);
+var subDate = new Date((new Date()).getFullYear(), mmdd.split('/')[0]-1, mmdd.split('/')[1]);
+var alarmDate = new Date((new Date()).getFullYear(), mmdd.split('/')[0]-1, mmdd.split('/')[1]);
+
+// 화면 새로고침용
+var mainInterval = null;
+var subInterval = null;
+var realInterval = null;
+var gridInterval = null;
+
+//서브 차트 왼쪽 비교 시간
+var last_cllct_dt = "";
+
+var mainChartIns ;
+var subChartIns;
+var mainChartInitOpt;
+var charOpts = {};
+
+var titleStr = "Servo Motor";
+
+$(document).ready(function() {
+	if(loadfactor_type=="LOAD_FACTOR_CYLINDER"){titleStr="Cylinder";}	
+	$(".main_title").text(titleStr+" Load Factor : "+ dvc_nm + " ( " + mmdd + " )");
+	
+	if(Object.keys(pkg4Jsn).length==1){
+		$('#btn-goback').css('display','none');
+	}
+	fnTable();
+	fnSearch();
+	//-- Kendo Date 설정
+	ClKendo.fnCreateDatePicker({selector : "#sdate", value: mainDate, min: null}); 
+	ClKendo.fnCreateDatePicker({selector : "#edate", value: mainDate, min: null});
+
+	// 차트 조회
+	fnCreateMainChart(null, initSubChart);
+});
+
+
+
+/**
+ * 메인 차트의 좌 / 우 클릭 시 이벤트
+ */
+// (좌)전날짜의 메인데이터를 조회하여 메인 차트를 출력
+$(".main_chart_title .left-btn").on('click', function(){
+	var dtObj = setMainDate(new Date(mainDate.setDate(mainDate.getDate()-1)));
+    fnCreateMainChart(dtObj.yymmdd); 
+});
+
+// (우)다음날짜의 메인데이터를 조회하여 메인 차트를 출력
+$(".main_chart_title .right-btn").on('click', function(){
+	var dt = new Date(); dt.setHours(0, 0, 0, 0);
+	// 다음 날짜가 오늘보다 크면 조회하지 않는다.
+	var compareDate = new Date(mainDate.getFullYear(), mainDate.getMonth(), mainDate.getDate()+1);
+	if( compareDate > dt){
+		compareDateNotification({top: 300, left: 832});
+		return;
+	}
+	var dtObj = setMainDate(new Date(mainDate.setDate(mainDate.getDate()+1)));
+    fnCreateMainChart(dtObj.yymmdd); //0201 t_md 형식으로 보냄
+});
+
+/**
+ * 서브 차트의 좌 / 우 클릭 시 이벤트
+ */
+//(좌)전날짜의 서브차트 조회
+$(".sub_chart_title .left-btn").on('click', function(){
+	// 전날짜의 메인데이터를 조회하여 메인 차트를 출력
+	var dtObj = setSubDate(new Date(subDate.setDate(subDate.getDate()-1)));
+    fnCreateSubLeftChart(var_id, dtObj.mmdd, null);//날짜 t_md 0102 형식
+});
+
+//(우)다음날짜의 서브차트 조회
+$(".sub_chart_title .right-btn").on('click', function(){
+	var dt = new Date(); dt.setHours(0, 0, 0, 0);
+	// 다음 날짜가 오늘보다 크면 조회하지 않는다.
+	var compareDate = new Date(subDate.getFullYear(), subDate.getMonth(), subDate.getDate()+1);
+	if( compareDate > dt ){
+		compareDateNotification({top: 570, left: 445});
+		return;
+	}
+	var dtObj = setSubDate(new Date(subDate.setDate(subDate.getDate()+1)));
+    fnCreateSubLeftChart(var_id, dtObj.mmdd, null);//날짜 t_md 0102 형식
+});
+
+$(".alarm_list .left-btn").on('click', function(){
+	var dtObj = setAlarmDate(new Date(alarmDate.setDate(alarmDate.getDate()-1)));
+	var param = {tree_nm : tree_nm,
+				 dvc_id : dvc_id,
+			 	 edate : dtObj.yymmdd,
+		 	 	 edate_mmdd : dtObj.mmdd};
+	fnSearch(param);
+});
+
+$(".alarm_list .right-btn").on('click', function(){
+	var dt = new Date(); dt.setHours(0, 0, 0, 0);
+	// 다음 날짜가 오늘보다 크면 조회하지 않는다.
+	var compareDate = new Date(alarmDate.getFullYear(), alarmDate.getMonth(), alarmDate.getDate()+1);
+	if( compareDate > dt ){
+		compareDateNotification({top: 650, left: 1420});
+		return;
+	}
+	var dtObj = setAlarmDate(new Date(alarmDate.setDate(alarmDate.getDate()+1)));
+	var param = {tree_nm : tree_nm,
+				 dvc_id : dvc_id,
+			 	 edate : dtObj.yymmdd,
+		 	 	 edate_mmdd : dtObj.mmdd};
+	fnSearch(param);
+});
+
+function compareDateNotification(_position){
+	ClKendo.fnErrorNotification({
+		msg: '오늘날짜 이후 데이터는 조회할 수 없습니다.', 
+		level: 'warning', 
+		opt: {
+			width: 256,
+			height: 42,
+			position: _position
+		}
+	});
+}
+
+// Main Chart의 시간 설정
+function setMainDate(date){
+	mainDate=date;
+	var dtObj = convertDate(mainDate);
+	$(".main_title").text(titleStr+" Load Factor : "+ pkg4Jsn["unit"+idx].name + " ( " + dtObj.month+"/"+dtObj.day+" )");
+	return dtObj;
+}
+
+//Sub Chart의 시간 설정
+function setSubDate(date){
+	subDate=date;
+	ClKendo.fnSetDatePickerVal("#sdate", new Date(subDate));
+	ClKendo.fnSetDatePickerVal("#edate", new Date(subDate));
+	var dtObj = convertDate(subDate); 
+	var dispNm = var_nm.length>30?var_nm.substr(0, 30)+'..':var_nm;
+    $("#subTitle1").text( "Daily History : " + dispNm +" ("+dtObj.month+"/"+dtObj.day+")");
+	return dtObj;
+}
+
+function setAlarmDate(date){
+	alarmDate=date;
+	var dtObj = convertDate(alarmDate); 
+	$("#subTitle2").text( "Alarm List : ("+dtObj.month+"/"+dtObj.day+")");
+	return dtObj;
+}
+
+// convert Date -> yyyy, mm, dd
+function convertDate(date){
+	var year = date.getFullYear();
+	var month = date.getMonth()+1;
+	var day = date.getDate();
+	month = month < 10 ? '0' + month : '' + month;
+	day   = day   < 10 ? '0' + day   : '' + day;
+	return {year:year, 
+			month:month, 
+			day:day,
+			yymmdd:year+month+day,
+			mmdd:month+day};
+}
+
+//일자 변경여부 확인
+function checkDateChange(_date){
+	var dt = new Date(); dt.setHours(0, 0, 0, 0);
+	// 일자 변경	
+	if(baseDate < dt){
+		baseDate = new Date();
+		return true;
+	}
+	return false;
+}
+
+function dateChangeProcess(_date){
+	var baseDtObj = convertDate(baseDate);		
+	setMainDate(baseDate);
+	if(subLeftDateRangeParam==null){
+		setSubDate(baseDate);
+	    fnCreateSubLeftChart(var_id, baseDtObj.mmdd, null);
+	}
+	var dtObj = setAlarmDate(baseDate);
+	var param = {tree_nm : tree_nm,
+				 dvc_id : dvc_id,
+			 	 edate : dtObj.yymmdd,
+		 	 	 edate_mmdd : dtObj.mmdd};
+	fnSearch(param);
+	_date=baseDtObj.yymmdd;
+	return _date;
+}
+
+// Date parameter와 현재 선택된 날짜 비교
+function checkDateParam(dateParam, dpDateParam){
+	var dtObj = convertDate(dpDateParam);
+	var dpDate = dtObj.yymmdd;
+	if(dpDate != dateParam){return false;}
+	return true;
+}
+
+//Date parameter와 현재 선택된 날짜 비교
+function checkDateRangeParam(sdate, edate, dpDateParam){
+	// 범위 값으로 지정된 경우
+	if(sdate!=null && edate!=null && sdate!=edate){
+		if(subLeftDateRangeParam!=sdate+edate){return false;}
+		return true; 
+	}
+	// 범위로 지정되지 않은 경우
+	else{
+		var dtObj = convertDate(dpDateParam);
+		var dpDate = dtObj.mmdd;
+		if(dpDate != sdate){return false;}
+		return true;
+	}
+} 
+
+/**
+ * 메인 차트 데이터 조회
+ */
+ function fnCreateMainChart(_date, callback){
+	if(_date == null){_date = convertDate(new Date()).yymmdd;}
+    // Interval 초기화 후 다시 실행
+    clearTimeout(mainInterval);
+    kendo.ui.progress($('body'), true);
+ 	// 일자 변경시의 처리
+	if(checkDateChange(_date)){
+		_date = dateChangeProcess(_date);
+	}
+	var lifList;
+	ClAjax.fnCallAjax({ 
+		url : '/custom/loaddetailmainAjax.do',
+		paramJsn : {
+			loadfactor_type : loadfactor_type,
+			tree_nm : tree_nm,
+			edate: _date,
+			dvc_id : dvc_id,
+			arr : new Array(),
+		},
+		sucFn : function(data) {
+			// ajax응답 대기시간 동안 click event가 발생한 경우 
+			// 해당 callback을 처리하지 않고 return
+			if(!checkDateParam(_date, mainDate)){ return; }
+			if(!(data.data && data.data.list
+				         && data.data.list.length>0)){
+				charOpts['main'] && charOpts['main'][0].clear();
+			}else{
+				var l = data.data.list
+				lifList = data.data.list;
+				var xAxisArrList = new Array();
+				var seriesArr = new Array();
+// 				var dvcArr = ClArray._groupBy(l, ["xunit"]);
+// 				var dateArr = ClArray._groupBy(l, ["data_tm"]);
+				var grpData = ClArray._groupBy(l, ['var_gr', 'data_tm']);
+				var xAxisGrpData = ClArray._groupBy(l, ['var_gr', 'var_id']);
+				var xAxisLength = Object.keys(xAxisGrpData.LOAD_FACTOR).length;
+				var legendData = Object.keys(grpData.LOAD_FACTOR);
+				$.each(xAxisGrpData, function(nm, e){
+					var isLine=(nm=='LOAD_FACTOR_EC');
+					var xAxisArr = Array.apply('', Array(isLine?xAxisLength*5:xAxisLength)).map(function(){return ''});
+					var idx=0;
+					$.each(xAxisGrpData[nm], function(e){
+						if(e!=''){
+							if(isLine){xAxisArr.fill(e, idx, idx+=5);}
+							else{xAxisArr[idx++]=e;}
+						}						
+					});
+					xAxisArrList.push(xAxisArr);
+				})
+				
+				itemStyle = {barBorderColor : 'black', barBorderWidth:0.4};
+				itemStyle2 = {opacity : 0.65};
+			    //load
+				var seriesArrTmp = new Array();
+				var diffArr=null;
+				$.each(grpData.LOAD_FACTOR, function(nm, item){
+					var tmpBar = new Array();
+					diffArr=item;
+					item.forEach(function(item){
+						tmpBar.push(item.data_val);
+					});
+					seriesArrTmp.push({name: nm, type: "bar", data: tmpBar, yAxisIndex: 1, xAxisIndex:0, z:1, itemStyle:itemStyle});
+				});
+				setlfStyle2(seriesArrTmp[4], diffArr);
+				seriesArr = seriesArr.concat(seriesArrTmp);
+				
+				//peak load
+				seriesArrTmp = new Array();
+				diffArr=null;
+				$.each(grpData.LOAD_FACTOR_PEAK, function(nm, item){
+					var tmpBar = new Array();
+					diffArr=item;
+					item.forEach(function(item){
+						tmpBar.push(item.data_val);
+					});
+					seriesArrTmp.push({name: nm, type: "bar",  data: tmpBar, yAxisIndex: 1, xAxisIndex:1, z:0, itemStyle:itemStyle2});
+				});
+				setlfStyle2(seriesArrTmp[4], diffArr);
+				seriesArr = seriesArr.concat(seriesArrTmp);
+				
+				//전류값
+				var tmpLine;
+				var diffVal=null;
+				var dummyLine = new Array();
+				seriesArrTmp = new Array();
+				diffArr=null;
+				$.each(grpData.LOAD_FACTOR_EC, function(nm, item){
+					tmpLine = new Array();
+					//tooltip line
+					item.forEach(function(item){
+						for(i=0; i<5; i++){
+							tmpLine.push(item.data_val);							
+						}
+					});
+					
+					diffArr = new Array();
+					item.forEach(function(item){
+						for(i=0; i<5; i++){
+							diffArr.push(item);							
+						}
+					});
+					
+					seriesArrTmp.push({
+				 		type: 'line', 
+				 		name: nm+' ', 
+				 		xAxisIndex:2,
+				 		yAxisIndex:0,
+				 		symbol: 'none',
+				 		markLine:{
+				 			data: [{name: 'load', yAxis: 0}],
+				 			label: {show: false},
+				 			symbol: 'none',
+				 			lineStyle:{
+				 				type: 'dashed',
+				 				color : 'green',
+//	 			 				color : '#FF3333',
+				 				width : 1
+				 			}
+				 		},
+				 		itemStyle : { color:'green'},
+			            lineStyle : {opacity:0},
+				 		data: tmpLine,
+					})
+				});
+				
+				/** 	*/
+				//data(dummy) line
+				var length = Object.keys(grpData.LOAD_FACTOR_EC[Object.keys(grpData.LOAD_FACTOR_EC)[0]]).length;
+				for(i=0; i<length; i++){
+					$.each(grpData.LOAD_FACTOR_EC, function(nm, item){
+// 						if(item[i].data_val>100){
+// 							dummyLine.push({ value : item[i].data_val,
+// 							   				 itemStyle : {color : 'red', barBorderColor : 'red'}});
+// 						}else{
+// 							dummyLine.push(item[i].data_val);
+// 						}
+						dummyLine.push(item[i].data_val);
+					})
+				}
+// 				setlfStyle2(seriesArrTmp[4], 99.5);
+				setlfStyle3(seriesArrTmp[4], dummyLine, diffArr);
+				seriesArr = seriesArr.concat(seriesArrTmp);
+				
+				seriesArr.push({
+			 		type: 'line', 
+			 		xAxisIndex:2,
+			 		yAxisIndex: 0,
+// 			 		symbol: 'none',
+			 		symbolSize: 3.5,
+			 		itemStyle : { color:'green'},
+// 			 		lineStyle : {opacity:0},
+			 		lineStyle : { color : 'green', width:1, opacity:0.5},
+// 			 		lineStyle : { color : '#333333'},
+			 		tooltip : { show : false,},
+			 		data: dummyLine,
+				})
+				
+				
+				
+				var chartOpt = {
+					legend: {show: true,
+							 data : legendData},
+					grid: {top:30,right:60,bottom:120,left:60},
+					tooltip:{
+								trigger: 'axis',
+					          	axisPointer: {
+					          		type: 'shadow'
+					          	},
+					          	position: function (pos, params, el, elRect, size) {
+					                var obj = {left: pos[0]+10,
+					                           top : pos[1]+10};    
+					                return obj;
+					            },
+					         },
+					         
+					         
+					xAxis: [
+						{
+							type: 'category',
+							data: xAxisArrList[0],
+							splitLine :{
+								show: true,
+								lineStyle: {
+									color: [ '#ffffff'],
+									type: 'dashed',
+								}
+							},
+					        axisTick:{
+					        	interval:0,
+					        },
+							axisLabel: {
+								showMinLabel: true,
+								showMaxLabel: true,
+								interval: 0,
+								rotate: 60,
+								fontSize: 9,
+								formatter: function (value, index) {
+								    var a = value.split('Servo');
+								    								
+								    return a[0];
+								}
+							},
+							axisPointer:{
+								label:{
+									show:false,
+								}
+							},
+							triggerEvent: true,
+						},
+						{
+				            type: 'category',
+				            axisTick: {show: false},
+				            axisLine: {onZero: false},
+				            splitLine: {show: false},
+				            axisLabel: {show: false},
+				            data: xAxisArrList[2],
+				        },
+				        {
+				            type: 'category',
+				            axisTick: {show: false},
+				            axisLine: {onZero: false},
+				            splitLine: {show: false},
+				            axisLabel: {show: false},
+				            data: xAxisArrList[1],
+				        }
+					],
+					yAxis: [
+				        {
+				            type: 'value',
+// 				            name: '(증감량)',
+// 				            max: function(value){return checkCylinderType(dvc_id)?Math.ceil(value.max):50}, 
+// 				            min: function(value){return checkCylinderType(dvc_id)?Math.ceil(value.max)*(-1):-75},
+ 							minInterval: checkCylinderType(dvc_id)?1:25,
+// 					        max: function(item){
+// 							    var diff = item.max-item.min;
+// 							    if(diff == 0) {diff = 1}
+// 							    return (item.max + ((diff) * 0.2)).toFixed(2);
+// 							},
+					        max: function(item){
+							    return Math.ceil(item.max + 10);
+							},
+ 							minInterval: 25,
+							nameLocation :'start',
+							splitNumber: 8,
+				            symbol: plusIconPath,
+							symbolSize: 12,
+				            axisLabel: {
+// 								formatter: function (value, index) {
+// 								    if(value >= -100){
+// 								    	return value + (checkCylinderType(dvc_id)?'s':' %');
+// 								    }
+// 								},
+								showMinLabel: false,
+					            showMaxLabel: false,
+				            },
+				            splitLine :{
+				            	show: false,
+				            }
+				        },
+				        {
+				            type: 'value',
+				            min: 0,
+				            max: function(value){return checkCylinderType(dvc_id)?Math.ceil(value.max):100},
+							minInterval: checkCylinderType(dvc_id)?1:25,
+				            axisLabel: {
+				            	formatter: checkCylinderType(dvc_id)?'{value}s':'{value} %',
+								interval: 10,
+								showMinLabel: true,
+								showMaxLabel: true,
+				            },
+				            splitLine :{
+				            	show: false,
+				            }
+				        },
+				    ],
+					dataZoom: {show: false},
+					series: seriesArr,
+				}
+				 var c = ClEcharts.fnCreateEcharts({
+					selector: "#mainChart",
+					type: 'line',
+					opt_overwrite: chartOpt,
+				});
+				mainChartIns = c;
+				mainChartInitOpt = chartOpt.xAxis[0].data;
+			 	c.on('click', function (params) {
+			 		if (params.componentType === 'xAxis' && params.xAxisIndex === 0) {
+			 			//onActiveSubChart(params.value, null, null, xAxisGrpData.LOAD_FACTOR);
+			 		} 
+			 	});
+			 	charOpts['main'] = [];
+			 	charOpts['main'].push(c);
+			}
+		},
+		errHandle : true,
+		compltFn : function() {
+			kendo.ui.progress($('body'), false);
+			resizeContents();
+			if(callback!=undefined){ callback(lifList); }
+			if(!checkDateParam(_date, mainDate)){ return; }
+			mainInterval = setTimeout(function(){
+				fnCreateMainChart(_date);
+			}, 350000); // 5분 = 1000 * 60 * 5 
+		},
+	});
+}
+
+function setlfStyle(seriesArr, chkVal){
+	if(seriesArr[4]!=null){
+		seriesArr[4].data.forEach(
+			function(data, idx){
+// 				var dataYtd = seriesArr[3].data[idx];
+// 				if(data > dataYtd){
+// 					seriesArr[4].data[idx] = { value : data,
+// 											   itemStyle : {color : 'red', barBorderColor : 'red'} };
+// 				}
+				if(data > chkVal){
+					seriesArr[4].data[idx] = { value : data,
+											   itemStyle : {color : 'red', barBorderColor : 'red'} };
+				}
+			}
+		);
+	}
+}
+function setlfStyle2(seriesArrData, chkArr){
+	if(seriesArrData!=null){
+		seriesArrData.data.forEach(
+			function(data, idx){
+				if('1'==chkArr[idx].alarm_target){
+					seriesArrData.data[idx] = { value : data,
+										   itemStyle : {color : 'red', barBorderColor : 'red'} };
+				}
+			}
+		);
+	}
+}
+
+function setlfStyle3(seriesArrData, dummyData, chkArr){
+	if(seriesArrData!=null){
+		seriesArrData.data.forEach(
+			function(data, idx){
+				if('1'==chkArr[idx].alarm_target){
+// 				if(data > chkArr[idx].data_val_diff){
+					var empStyle =  {value:data, itemStyle:{color:'red', barBorderColor:'red'} };
+// 					dummyData[((idx+1)*5)-1] = empStyle;
+					if((idx+1)%5==0) dummyData[idx] = empStyle; 
+					seriesArrData.data[idx] = empStyle;
+				}
+			}
+		);
+	}
+}
+
+// Chart의 xAxis Data 옵션 재설정
+function overwriteDataOption(dataOpt){
+	var opt = mainChartIns.getOption(); 
+	opt.xAxis[0].data = dataOpt;
+	mainChartIns.setOption(opt);
+}
+
+function fnCreateSubLeftChart(_var_id, _sdate, _edate, params){
+	clearTimeout(subInterval);
+	ClAjax.fnCallAjax({
+		url : '/custom/loaddetailSubLeftAjax.do',
+		paramJsn : {
+			loadfactor_type : loadfactor_type,
+			tree_nm : tree_nm,
+			sdate: _sdate,
+			edate: _edate,
+			dvc_id : dvc_id,
+			var_id : _var_id,
+		},
+		sucFn : function(data) {
+			if(!checkDateRangeParam(_sdate, _edate, subDate)){return;}
+			if(!(data.data && data.data.list 
+					       && data.data.list.length>0)){
+				charOpts['sub'] && charOpts['sub'][0].clear();
+			}else{
+				var l = data.data.list;
+				
+				var _xAxis = []; // x축 시간 데이터
+				var _series_data = []; // Series Object
+				
+				var varGrpData = ClArray._groupBy(l, ['var_id']);
+				var grpKey = Object.keys(ClArray._groupBy(l, ['var_id']))[0];
+				$.each(varGrpData[grpKey],  function(idx, item){
+					_xAxis.push(item.data_tm);
+				});
+				
+				$.each(varGrpData,  function(nm){
+					var seriesTmp = new Array();
+					$.each(varGrpData[nm], function(idx, item){
+						var val;
+						if(nm.includes('Peak')){val=item.data_val_max}
+						else{val=item.data_val}
+						seriesTmp.push(val);
+						
+					});
+					_series_data.push(seriesTmp)
+				});
+				
+				// 일자별 조회시, 최근 2시간만 출력
+				var dataZoomOpt = {
+					start : 0,
+					end : null
+				};
+					
+				if(_edate == null){
+					if(params!=null && typeof params.dataZoomOption != 'undefined'){
+						try{
+							var time = params.dataZoomOption.eventTime.substr(8,4);
+							var idx = _xAxis.map(function (e){return e.replace(":", "")}).indexOf(time);
+							var idxBase = idx/_xAxis.length;
+							var idxBasePcnt = idxBase*100;
+							var posWeightPlus  = 4;
+							var posWeightMinus = 4;
+							if(isNaN(idxBasePcnt)){idxBasePcnt=100};
+							if(idxBasePcnt>96){
+								idxBasePcnt=96;
+							}else if(idxBasePcnt<4){
+								idxBasePcnt=4;
+							}else{
+								posWeightPlus  = posWeightPlus*idxBase;
+								posWeightMinus = posWeightMinus*(1-idxBase);
+							}
+							dataZoomOpt.start = idxBasePcnt + posWeightMinus;
+							dataZoomOpt.end   = idxBasePcnt - posWeightPlus;
+						}catch(e){}
+					}else{
+						dataZoomOpt.start = (_xAxis.length-120)/_xAxis.length*100;
+					}
+				}
+				
+				var opt = {
+					legend: {show: true},
+					grid: {top:30,right:60,bottom:60,left:60},
+					xAxis: {
+						type: 'category',
+						data: _xAxis,
+						axisLabel: {
+							showMinLabel: true,
+							showMaxLabel: true,
+						},
+					},
+					yAxis: [
+				        {
+				            type: 'value',
+				            axisLabel: {
+					            formatter: '{value} %'
+				            },
+				            min: 0,
+				            max: 100,
+							minInterval: 5,
+				        },{
+				            type: 'value',
+				            splitLine :{
+				            	show: false,
+				            },
+				            minInterval: 50,
+				        }
+				    ],
+				    dataZoom: [
+						{
+							type: 'slider',
+							show: true,
+							showDetail: false,
+							xAxisIndex: 0,
+							// dataZoom 조절로 최근 2시간 데이터만 우선 출력
+							start: dataZoomOpt.start,
+							end : dataZoomOpt.end 
+						},
+						{
+							type: 'slider',
+							show: false,
+							showDetail: false,
+							yAxisIndex: 0,
+							right: 65,
+						},
+					],
+					series: [{
+								type: 'line', 
+								name : 'Load',
+						 		yAxisIndex: 0,
+						 		itemStyle : { color:'#eedd78'},
+						 		lineStyle : { color :'#eedd78'},
+// 						 		tooltip : { show : false,},
+						 		data: _series_data[0],
+							},{
+								type: 'line',
+								name : 'Peakload',
+								yAxisIndex: 0,
+								itemStyle : { color : 'red'},
+						 		lineStyle : { color : 'red'},
+						 		data: _series_data[2],
+							},{
+								type: 'line',
+								name : 'Current',
+								yAxisIndex: 1,
+								itemStyle : { color : 'green'},
+						 		lineStyle : { color : 'green'},
+						 		data: _series_data[1],
+							},
+					]
+					/** {
+						type: 'line',
+						smooth: true,
+						data : _series_data,
+						itemStyle:{
+							color:'red'	
+						},
+						lineStyle:{
+							color:'red'	
+						},
+					}*/
+				}
+				subChartIns = ClEcharts.fnCreateEcharts({
+					selector: "#subChart1",
+					type: 'line',
+					opt_overwrite: opt,
+				});
+				charOpts['sub']=[];
+				charOpts['sub'].push(subChartIns);
+			}
+		},
+		errHandle : true,
+		compltFn : function() {
+			resizeContents();
+			if(!checkDateRangeParam(_sdate, _edate, subDate)){return;}
+			if(params!=null && typeof params.callbackAction != 'undefined'){params.callbackAction()}
+			subInterval = setTimeout(function(){
+				fnCreateSubLeftChart(_var_id, _sdate, _edate);
+			}, 350000); // 5분 = 1000 * 60 * 5
+		},
+	});
+}
+
+//Sub Chart 초기화
+ function initSubChart(data){
+ 	var dvcArr = data;
+ 	var firstUnit = {};
+ 	if(data!= null){
+		var alarmTarget=dvcArr.filter(function(i){return i.alarm_target=='1'})[0];
+		if(alarmTarget!=null) {
+			firstUnit.name = dvcArr.filter(function(i){return i.var_gr_seq==alarmTarget.var_gr_seq && i.var_gr=='LOAD_FACTOR'})[0].var_id;  
+		}else{
+			firstUnit.name = dvcArr[0].var_id;
+		}
+ 	}
+ }
+ 
+function checkCylinderType(dvc_id){
+	var scaleStr = 'cylinder';	
+	// DvcID에 Cylinder가 포함되거나, type이 지정된 경우
+	var containsScaleStr = dvc_id.toLowerCase().indexOf(scaleStr)>-1;
+	var isCylinderType = loadfactor_type=="LOAD_FACTOR_CYLINDER";
+	return containsScaleStr||isCylinderType	; 
+}
+ 
+
+/**
+ * 오늘날짜에서 내일날짜로 변경되었을때,
+ */
+function fnDateUpdate(){
+	// 스크립트 실행 중 날짜가 변경되었을 때, 변경된 날짜로 변경해준다.
+}
+
+
+/**
+ * 해당 구동부 데이터 조회(Grid 조회 페이지로 이동)
+ */
+function fnCreateLoadGrid(){
+	// ppt의 형태에 맞게 쿼리 작성하여 Grid에 출력 
+	ClCommon.fnMovePage('/custom/loaddetailgrid.do', 'type=' + _type);
+	
+	// 해당 페이지는 기간 검색조건 (일자별) / 조회 버튼 / 다운로드 버튼으로 구성
+	// 조회 시 검색기간에 해당하는 구동부별 일자별 평균 부하율을 표시
+	// 다운로드 시 해당 Grid 를 csv 파일로 다운로드, Grid를 조회하지 않아도 다운로드 할 수 있도록 서버사이드 처리
+}
+
+function resizeContents() {
+	$('.unit_chart').css('height',  'calc(' + $('.chart_main').css('height') + ' - 50px)');
+	$('.grid').css('height',  $('.alarm_tbl ').css('height'));
+	$.each(charOpts, function(idx, charOpt){
+		$.each(charOpt, function(idx, e){
+			if(e.hasOwnProperty('resize')){try{e.resize();}catch(err){}};
+		});
+	});
+}
+
+function fnGoBack(){
+// 	window.history.back();
+	ClCommon.fnMovePage('/custom/'+parent_url);
+}
+//============= Cylinder =================================================================
+var _status = null;
+var _interval = null;
+var reset = "${reset}";
+
+//최초 실행
+
+
+function fnSearch(){
+	
+	ClAjax.fnCallAjax({
+		url : '/pmng/cylinderStatusAjax.do',
+		errHandle : true,
+		sucFn: function(data){
+			var list = data.data.list;
+			
+			if(list.length > 0) {
+				list.forEach(function(item, idx){
+					var _dvc = item.dvc_id;
+					var _var = item.var_id;
+					var _data = item.data_val;
+					var _type = item.status;
+					
+					$("#dvc_" + _dvc + "_"+ _var).text(_data);
+					$("#dvc_" + _dvc + "_"+ _var).removeClass("warn alarm run");
+					$("#dvc_" + _dvc + "_"+ _var).addClass(_type);					
+				});
+			}
+		},
+		compltFn: function(){
+			//재조회
+			_status = setTimeout(function(){
+				fnSearch();						
+			}, 1000 * 60 * reset); //갱신
+			
+			//장비별 임계치 상태
+			fnStatus();
+		}
+	});
+}
+
+
+function fnStatus() {
+	$.each($("td[headers=title]"), function(idx, item){
+		var _tt = item.id;
+		var t_warn = 0;
+		var t_alarm = 0;
+		var t_run = 0;
+		var t_col = "";
+		
+		$.each($("td[headers=value]"), function(i, v){
+			if(v.id.indexOf(_tt) >= 0) {
+				if($("#"+v.id).attr('class') != undefined && $("#"+v.id).attr('class').indexOf("warn") >= 0) {
+					t_warn++;
+				}else if($("#"+v.id).attr('class') != undefined && $("#"+v.id).attr('class').indexOf("alarm") >= 0) {
+					t_alarm++;
+				}else if($("#"+v.id).attr('class') != undefined && $("#"+v.id).attr('class').indexOf("run") >= 0) {
+					t_run++;
+				}
+			}
+		});
+		
+		if(t_warn > 0) {
+			t_col = "warn";
+		}else if (t_warn == 0 && t_alarm > 0) {
+			t_col = "alarm";
+		}else if (t_warn == 0 && t_alarm == 0 && t_run > 0) {
+			t_col = "run";
+		} else {
+			t_col = "off";
+		}
+		
+		$("#" + _tt).removeClass("title-warn title-alarm title-run title-off");
+		$("#" + _tt).addClass("title-" + t_col);
+	});
+}
+
+function fnTable(){
+	ClAjax.fnCallAjax({
+		url : '/pmng/op_cylinderCylceAjax.do',
+		errHandle : true,
+		sucFn: function(data){
+			var list = data.data.list;
+			var list_str;
+			
+			if(list.length > 0) {
+				list.forEach(function(i, idx){
+					list_str += '<tr>'
+		                      + '	 <td class="text-center fnt-8">'+i.rn+'</td>'
+		                      + '	 <td class="text-center fnt-8">'+i.weekly+'</td>'
+		                      + '	 <td class="text-center fnt-14">'+i.res_1+'</td>'
+		                      + '	 <td class="text-center fnt-14">'+i.res_2+'</td>'
+		                      + '	 <td class="text-center fnt-14">'+i.res_3+'</td>'
+		                      + '	 <td class="text-center fnt-14">'+i.res_4+'</td>'
+		                      + '	 <td class="text-center fnt-14">'+i.res_5+'</td>'
+		                      + '	 <td class="text-center fnt-14">'+i.res_6+'</td>'
+		                      + '	 <td class="text-center fnt-14">'+i.res_7+'</td>'
+		                      + '	 <td class="text-center fnt-14">'+i.res_8+'</td>'
+		                      + '	 <td class="text-center fnt-14">'+i.res_9+'</td>'
+		                      + ' </tr>'
+				});
+			} else {
+				list_str = '<tr>'
+                    	  + '<td colspan="11" style="height:481px; text-align:center; font-size:30px;">NO RECORD DATA</td>'
+                    	  + '</tr>';
+			}
+			
+			$('#tbody').empty();
+            $('#tbody').append(list_str);
+		},
+		compltFn: function(){
+			//재조회
+			_interval = setTimeout(function(){
+				fnTable();						
+			}, 1000 * 60 * reset); //갱신
+		}
+	});
+}
+//******************************************************************
+var var_arr = [];
+var var_str_arr = [];
+
+//화면에 있는 var_id 조회 후 배열 만들기
+var classList = document.getElementsByClassName('var_id');
+for (var i = 0; i < classList.length; i++) {
+	var_arr.push(classList[i].className.replaceAll('var_id ', ''));
+}
+
+//화면에 있는 var_id 조회 후 배열 만들기
+var classStrList = document.getElementsByClassName('var_id_str');
+for (var i = 0; i < classStrList.length; i++) {
+	var_str_arr.push(classStrList[i].className.replaceAll('var_id_str ', ''));
+}
+var timeout = null;
+var intvl = 60000; //재조회 시간 60 * 1000 1분
+
+//초, 노, 빨
+var color_arr =['#11a448', '#ffc52a','#f00000'];
+
+//recent 값 가져오기
+fngetRecentList(var_arr, 'n');
+
+//recent string 값 가져오기
+fngetRecentList(var_str_arr, 's');
+
+//SV 색상 값 가져오기
+fngetSVColorList();
+
+//PV 색상 값 가져오기
+fngetPVColorList();
+
+
+// ============= CTQ =============
+fnGetCtqRecentList();
+//******************************************************************
+
+function fnMove(){
+	//에러 추적 화면으로 이동
+	ClLayout.fnTabAdd('Error Tracking', 962, '/pmng/errTrack.do', 'Error Tracking');
+}
+
+/**
+ * recent 값 가져오기
+ */
+function fngetRecentList(_var_arr, type){
+	ClAjax.fnCallAjax({
+		url : '/pmng/getRecentList.do',
+		paramJsn : {
+			var_arr : _var_arr,
+		},
+		sucFn : function(data) {
+			var l = data.data.list;
+			if(l.length > 0){
+				
+				if('s' == type){ //문자
+					$.each(l, function(idx, item) {
+						
+						$('.var_id_str.'+item.var_id).text(item.data_str_val);
+					});
+				}
+				
+				if('n' == type){ //숫자
+					$.each(l, function(idx, item) {
+						var val = item.data_val.replaceAll(',', '');
+						if(val > 100000){
+							//백단위 자른 후 K 붙임
+							var valarr = item.data_val.split('.'); //소수점 제외
+							$('.var_id.'+item.var_id).text(valarr[0].substr(0, (valarr[0].length) - 4) + ' K');
+						}else{
+							//Cell_Type  1  ->  A ,  2 -> C 로 표시(20.09.03 변경)
+							if('Cell_Type' == item.var_id){
+								if(item.data_val == 1){
+									$('.var_id.'+item.var_id).text('A');
+								}else if(item.data_val == 2){
+									$('.var_id.'+item.var_id).text('C');
+								}
+							}else{
+								$('.var_id.'+item.var_id).text(item.data_val);
+							}
+						}
+					});
+				}
+				
+			}
+		},
+		errHandle : true,
+		errFn: true,
+		compltFn : function() {
+			timeout = setTimeout(function(){
+				fngetRecentList(_var_arr, type);
+	        }, intvl);
+		},
+	}); 
+	
+} 
+
+
+/**
+ * CTQ recent 값 가져오기
+ */
+function fnGetCtqRecentList(){
+	ClAjax.fnCallAjax({
+		url : '/pmng/getVisionRecentList.do',
+		paramJsn : {
+		},
+		runFn : function(data) {
+			var rear = data.data.list0;
+			var front = data.data.list1;
+			if(rear.length > 0 ){
+				$.each(rear[0], function(idx, item) { 
+					$('.ctq_list_r.'+idx).text(item);
+				});
+				
+			}
+			$('.ctq_list_r.a1u_mean').addClass(rear[0].a1u_mean_css);
+			$('.ctq_list_r.a2u_mean').addClass(rear[0].a2u_mean_css);
+			$('.ctq_list_r.a3u_mean').addClass(rear[0].a3u_mean_css);
+			$('.ctq_list_r.a4u_mean').addClass(rear[0].a4u_mean_css);
+			$('.ctq_list_r.a5u_mean').addClass(rear[0].a5u_mean_css);
+			$('.ctq_list_r.a6u_mean').addClass(rear[0].a6u_mean_css);
+			$('.ctq_list_r.a1l_mean').addClass(rear[0].a1l_mean_css);
+			$('.ctq_list_r.a2l_mean').addClass(rear[0].a2l_mean_css);
+			$('.ctq_list_r.a3l_mean').addClass(rear[0].a3l_mean_css);
+			$('.ctq_list_r.a4l_mean').addClass(rear[0].a4l_mean_css);
+			$('.ctq_list_r.a5l_mean').addClass(rear[0].a5l_mean_css);
+			$('.ctq_list_r.a6l_mean').addClass(rear[0].a6l_mean_css);
+			$('.ctq_list_r.sm1_mean').addClass(rear[0].sm1_mean_css);
+			$('.ctq_list_r.sm2_mean').addClass(rear[0].sm2_mean_css);
+			$('.ctq_list_r.sm3_mean').addClass(rear[0].sm3_mean_css);
+			$('.ctq_list_r.sm4_mean').addClass(rear[0].sm4_mean_css);
+			$('.ctq_list_r.th_a_mean').addClass(rear[0].th_a_mean_css);
+			$('.ctq_list_r.tw_mean').addClass(rear[0].tw_mean_css);
+			$('.ctq_list_r.tw_i_mean').addClass(rear[0].tw_i_mean_css);
+			$('.ctq_list_r.ts_a_mean').addClass(rear[0].ts_a_mean_css);
+			$('.ctq_list_r.ts_u_mean').addClass(rear[0].ts_u_mean_css);
+			if( front.length > 0 ){
+				$.each(front[0], function(idx, item) {
+					$('.ctq_list_f.'+idx).text(item); 
+				});
+			}			
+			$('.ctq_list_f.a1u_mean').addClass(front[0].a1u_mean_css);
+			$('.ctq_list_f.a2u_mean').addClass(front[0].a2u_mean_css);
+			$('.ctq_list_f.a3u_mean').addClass(front[0].a3u_mean_css);
+			$('.ctq_list_f.a4u_mean').addClass(front[0].a4u_mean_css);
+			$('.ctq_list_f.a5u_mean').addClass(front[0].a5u_mean_css);
+			$('.ctq_list_f.a6u_mean').addClass(front[0].a6u_mean_css);
+			$('.ctq_list_f.a1l_mean').addClass(front[0].a1l_mean_css);
+			$('.ctq_list_f.a2l_mean').addClass(front[0].a2l_mean_css);
+			$('.ctq_list_f.a3l_mean').addClass(front[0].a3l_mean_css);
+			$('.ctq_list_f.a4l_mean').addClass(front[0].a4l_mean_css);
+			$('.ctq_list_f.a5l_mean').addClass(front[0].a5l_mean_css);
+			$('.ctq_list_f.a6l_mean').addClass(front[0].a6l_mean_css);
+			$('.ctq_list_f.sm1_mean').addClass(front[0].sm1_mean_css);
+			$('.ctq_list_f.sm2_mean').addClass(front[0].sm2_mean_css);
+			$('.ctq_list_f.sm3_mean').addClass(front[0].sm3_mean_css);
+			$('.ctq_list_f.sm4_mean').addClass(front[0].sm4_mean_css);
+			$('.ctq_list_f.th_a_mean').addClass(front[0].th_a_mean_css);
+			$('.ctq_list_f.tw_mean').addClass(front[0].tw_mean_css);
+			$('.ctq_list_f.tw_i_mean').addClass(front[0].tw_i_mean_css);
+			$('.ctq_list_f.ts_a_mean').addClass(front[0].ts_a_mean_css);
+			$('.ctq_list_f.ts_u_mean').addClass(front[0].ts_u_mean_css);
+		},
+		errHandle : true,
+		errFn: true,
+		compltFn : function() {
+			fngetCTQColorList();
+			timeout = setTimeout(function(){
+				fnGetCtqRecentList();
+	        }, intvl);
+		},
+	}); 
+	
+}
+/**
+ * SV 색상 가져오기
+ */
+function fngetSVColorList(){
+	ClAjax.fnCallAjax({
+		url : '/pmng/getSVColorList.do',
+		sucFn : function(data) {
+			var l = data.data.list;
+			if(l.length > 0){
+				$.each(l, function(idx, item) {
+					$('.'+item.var_id).removeClass('green');
+					$('.'+item.var_id).removeClass('yellow');
+					$('.'+item.var_id).removeClass('red');
+					$('.'+item.var_id).addClass(item.color_class);
+					//클릭 이벤트 발생
+					$('.'+item.var_id).on('click', function(){
+// 						console.log(this.classList[1]);
+						//TODO 메뉴 id 확인
+// 						<a href="/pmng/svHistory.do?menu_no=963&header_menu=Y&dvc_gr_type=" menu_no="963">
+						ClLayout.fnTabAdd('SV History Summary', 963, '/pmng/svHistory.do?var_id'+ this.classList[1], 'SV History Summary');
+					})
+				});
+			}
+		},
+		errHandle : true,
+		errFn: true,
+		compltFn : function() {
+			timeout = setTimeout(function(){
+				fngetSVColorList();
+	        }, intvl);
+		},
+	}); 
+}
+
+/**
+ * CTQ 색상 가져오기
+ */
+function fngetCTQColorList(){
+	ClAjax.fnCallAjax({
+		url : '/pmng/getCTQColorList.do',
+		sucFn : function(data) {
+			var l = data.data.list;
+// 			console.log(l);
+			if(l.length > 0){
+				$.each(l, function(idx, item) {
+					$('.ctq_list.'+item.gubun+'.'+item.var_id).removeClass('green');
+					$('.ctq_list.'+item.gubun+'.'+item.var_id).removeClass('yellow');
+					$('.ctq_list.'+item.gubun+'.'+item.var_id).removeClass('red');
+					$('.ctq_list.'+item.gubun+'.'+item.var_id).addClass(item.color_class);
+				});
+			}
+		},
+		errHandle : true,
+		errFn: true,
+		compltFn : function() {
+			timeout = setTimeout(function(){
+				fngetCTQColorList();
+	        }, intvl);
+		},
+	}); 
+}
+
+/**
+ * PV 색상 가져오기
+ */
+function fngetPVColorList(){
+	ClAjax.fnCallAjax({
+		url : '/pmng/getPVColorList.do',
+		sucFn : function(data) {
+			var l = data.data.list;
+			if(l.length > 0){
+				$.each(l, function(idx, item) {
+					$('.var_id.'+item.var_id).removeClass('green');
+					$('.var_id.'+item.var_id).removeClass('yellow');
+					$('.var_id.'+item.var_id).removeClass('red');
+					$('.var_id.'+item.var_id).addClass(item.color_class);
+					
+// 						console.log(item.var_id);
+					//클릭 이벤트 발생
+					//TODO 메뉴 id 확인
+					$('.var_id.'+item.var_id).on('click', function(){
+						ClLayout.fnTabAdd('Trend Monitoring', 964, 'pmng/trendMoni.do', 'Trend Monitoring');
+					})
+				});
+			}
+		},
+		errHandle : true,
+		errFn: true,
+		compltFn : function() {
+			timeout = setTimeout(function(){
+				fngetPVColorList();
+	        }, intvl);
+		},
+	}); 
+}
+
+/**
+ * 차트 그리기
+ */
+function drawChart(_var_arr, i){
+	
+	ClAjax.fnCallAjax({
+		url : '/pmng/getRecentList.do',
+		paramJsn : {
+			var_arr : _var_arr
+		},
+		sucFn : function(data) {
+			var l = data.data.list;
+// 			console.log(l);
+			
+			if(l.length > 0){
+		            
+		            var _xAxis = _var_arr; // x축 시간 데이터
+		            var _series = []; // Series Object
+					
+		            var mk1, mk2; //마크라인
+		            
+		            var data1, data2; //데이터
+		            
+		            $.each(l, function(idx, item){
+		            	if(item.var_id == _var_arr[0]){
+		            		var val = item.data_val.replaceAll(',', '')
+		            		
+		            		data1 = val;
+		            		mk1 = (val * 0.7);
+		            		mk2 = (val * 0.9);
+		            	}
+		            	if(item.var_id == _var_arr[1]) data2 = item.data_val.replaceAll(',', '');
+					})
+					
+					var present_color = color_arr[0];
+					if(data2 >= mk2){
+						present_color = color_arr[2];
+					}else if(data2 >= mk1){
+						present_color = color_arr[1];
+					}
+					
+		            
+		            var option = {
+		            	grid:{
+		            		left: 0,
+		            		top: 3,
+		            		bottom: 3,
+		            	},
+		            	legend: {
+		                    show: false
+		                },
+		                xAxis: {
+		                    type: 'value',
+		                    boundaryGap: [0, 0.01],
+		                    show: false
+		                },
+		                yAxis: {
+		                    type: 'category',
+		                    data: _xAxis,
+		                    show: false
+		                },
+		                series: {
+		                    type: 'bar',
+		                    barWidth: '60%',
+		                    markLine : {
+		                        silent: true,
+		                        data: [
+		                            {
+		                                xAxis: mk1,
+		            		        },{
+		                                xAxis: mk2,
+		            		        }
+		        		        ],
+		        		        symbolSize:0,
+		        		        label:{
+		        		            show: false
+		        		        },
+		                        lineStyle:{
+		                            type: 'dotted',
+		                            color: 'red',
+		                            width: 1,
+		        		        }
+		                    },
+		                    data: [
+		                        {     
+		                            value: data2,
+		                            itemStyle: {color: present_color},
+		                            label:{
+		                               show: false
+		                            }
+		                        },
+		                        {     
+		                            value: data1,
+		                            itemStyle: {color: '#11a448'},
+		                            label:{
+		                                show: false
+		                            }
+		                        },
+		                        
+		                    ],
+		                    backgroundColor: '#32323d',
+		                }
+		            };
+		            
+		            var _dom = document.getElementById('main_chart' + i);
+		            
+		            var c = echarts.getInstanceByDom(_dom);
+					if(c != null){
+						c.dispose();
+						c = null;
+					}
+		            
+					chart = echarts.init(_dom, 'dark');
+					chart.setOption(option);
+					
+			}
+			
+		},
+		errHandle : true,
+		errFn: true,
+		compltFn : function() {
+			timeout = setTimeout(function(){
+				drawChart(_var_arr, i);
+	        }, intvl);
+		},
+	}); 
+}
+</script>

@@ -1,0 +1,14 @@
+{
+  "short_name": "BTS",
+  "name": "BTS",
+  "icons": [
+    {
+      "src": "resource/img/favicon_lg.ico",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape"
+}

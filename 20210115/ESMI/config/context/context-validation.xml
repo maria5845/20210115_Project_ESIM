@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-4.2.xsd
+                        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.2.xsd
+						http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.2.xsd
+						http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.2.xsd
+						http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task-4.2.xsd
+						http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-4.2.xsd
+						http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.2.xsd"
+	default-lazy-init="true">
+	
+	<!-- Excel Validator -->
+	<util:list id="validateParamList" list-class="java.util.LinkedList" value-type="java.util.LinkedHashMap">
+		<ref bean="validateParamList1" />
+		<ref bean="validateParamList2" />
+		<ref bean="validateParamList3" />
+	</util:list>
+	
+	
+
+	<!-- property -->
+	<util:list id="ynCodeList" value-type="java.lang.String">
+	
+		<value>Y</value>
+		<value>N</value>
+	</util:list>
+	
+	<util:list id="objTypeCodeList" value-type="java.lang.String">
+		<value>Work</value>
+		<value>Status</value>
+		<value>Monitoring</value>
+		<value>Text</value>
+		<value>Image</value>
+	</util:list>
+	
+	<util:list id="keyList1" value-type="java.lang.String">
+		<value>A</value>
+	</util:list>
+	
+	<util:list id="keyList2" value-type="java.lang.String">
+		<value>A</value>
+		<value>B</value>
+	</util:list>
+	
+	<!-- Excel Column data mapper (Alarm)	 -->
+	<util:map id="alarmExcelMapper" map-class="java.util.HashMap" key-type="java.lang.String" value-type="java.util.HashMap">
+		<entry key="condition1" value-ref="column_condition"/>
+		<entry key="condition2" value-ref="column_condition"/>
+		<entry key="condition3" value-ref="column_condition"/>
+		<entry key="condition4" value-ref="column_condition"/>
+	</util:map>
+	<util:map  id="column_condition" key-type="java.lang.String" value-type="java.lang.String">
+		<entry key="Equal" 	value="EQ" />
+		<entry key="Over" 	value="GT" />
+		<entry key="Below" 	value="LT" />
+	</util:map>
+</beans>

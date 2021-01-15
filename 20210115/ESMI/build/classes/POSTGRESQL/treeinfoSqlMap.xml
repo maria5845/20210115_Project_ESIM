@@ -1,0 +1,504 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:56 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="treeinfoSqlMap">
+
+	<select id="getLnbTreeList" parameterType="treeInfoBean" resultType="hmap">
+		WITH RECURSIVE tree_query (
+			tree_seq, p_tree_seq, tree_nm, depth_ord, sort, tree_desc, level, dvc_seq, tree_kd, use_yn
+		) AS (
+			SELECT
+				t1.tree_seq
+				, t1.p_tree_seq
+				, t1.tree_nm
+				, t1.depth_ord
+				, TO_CHAR( CAST( (t1.depth_ord) AS int8), '09999999') AS sort
+				, t1.tree_desc
+				, 1 AS level
+				, t1.dvc_seq
+				, t1.tree_kd
+				, t1.use_yn
+			FROM t_tree_info t1
+			WHERE t1.p_tree_seq = 0
+		    UNION ALL
+		    SELECT
+				t2.tree_seq
+				, t2.p_tree_seq
+				, t2.tree_nm
+				, t2.depth_ord
+				, CONCAT(t3.sort, ' > ', TO_CHAR( CAST( (t2.depth_ord ) AS int8), '09999999')) AS sort
+				, t2.tree_desc
+				, t3.level +1
+				, t2.dvc_seq
+				, t2.tree_kd
+				, t2.use_yn
+			FROM t_tree_info t2
+			INNER JOIN tree_query t3 
+				ON t2.p_tree_seq = t3.tree_seq
+		)
+		SELECT
+			a.tree_seq
+			, a.tree_seq AS id
+			, a.tree_desc AS text
+			, a.p_tree_seq, a.tree_nm, a.depth_ord, a.sort, a.dvc_seq
+			, a.tree_kd
+			, (SELECT cd_val FROM t_cm_cd WHERE cat_cd = 'TREE_KD' AND cd = tree_kd) AS tree_kd_nm
+			, a.use_yn
+			, c.dvc_id
+			, true AS expanded
+			, a.level as tree_level
+			, CASE WHEN 
+				(SELECT count(*) FROM T_DSBD_TREE_MAPP WHERE dsbd_seq = #{dsbd_seq} AND dvc_seq = a.dvc_seq) > 0 
+			  THEN 1 
+				ELSE 0 
+			  END as checked
+		FROM tree_query a
+		INNER JOIN t_tree_user_mapp b
+			ON a.tree_seq = b.tree_seq
+				AND b.user_id = #{login_user_id}
+		LEFT OUTER JOIN t_dvc_info c
+			ON a.dvc_seq = c.dvc_seq
+		WHERE a.use_yn = 'Y'
+		ORDER BY a.sort asc
+	</select>
+
+	<select id="getTreeList" parameterType="treeInfoBean" resultType="treeInfoBean">
+		WITH RECURSIVE tree_query (
+			tree_seq, p_tree_seq, tree_nm, depth_ord, sort, tree_desc, level, dvc_seq, tree_kd, use_yn, gen_by, gen_dt, mdfy_by, mdfy_dt
+		) AS (
+			SELECT
+				t1.tree_seq
+				, t1.p_tree_seq
+				, t1.tree_nm
+				, t1.depth_ord
+				, TO_CHAR( CAST( (t1.depth_ord) AS int8), '09999999') AS sort
+				, t1.tree_desc
+				, 1 AS level
+				, t1.dvc_seq
+				, t1.tree_kd
+				, t1.use_yn
+				, t1.gen_by, t1.gen_dt, t1.mdfy_by, t1.mdfy_dt
+			FROM t_tree_info t1
+			WHERE t1.p_tree_seq = 0
+		    UNION ALL
+		    SELECT
+				t2.tree_seq
+				, t2.p_tree_seq
+				, t2.tree_nm
+				, t2.depth_ord
+				, CONCAT(t3.sort, ' > ', TO_CHAR( CAST( (t2.depth_ord ) AS int8), '09999999')) AS sort
+				, t2.tree_desc
+				, t3.level +1
+				, t2.dvc_seq
+				, t2.tree_kd
+				, t2.use_yn
+				, t2.gen_by, t2.gen_dt, t2.mdfy_by, t2.mdfy_dt
+			FROM t_tree_info t2
+			INNER JOIN tree_query t3 
+				ON t2.p_tree_seq = t3.tree_seq
+		)
+		SELECT
+			a.tree_seq, a.p_tree_seq, a.tree_nm, a.tree_desc, a.level, a.sort, a.depth_ord
+			, a.use_yn
+			, (select count(*) from t_tree_info dd where a.p_tree_seq = dd.p_tree_seq) as depth_cnt
+			, (select count(*) from t_tree_info ee where a.tree_seq = ee.p_tree_seq) as child_cnt
+			, a.dvc_seq
+			, b.dvc_id
+			, b.dvc_nm
+		 	, a.tree_kd
+			, (SELECT cd_val FROM t_cm_cd where cat_cd = 'TREE_KD' and cd = a.tree_kd) as tree_kd_nm
+			, a.gen_by, a.gen_dt, a.mdfy_by, a.mdfy_dt
+		FROM tree_query a
+		LEFT OUTER JOIN t_dvc_info b
+			ON a.dvc_seq = b.dvc_seq
+		WHERE 1=1
+		<if test='"1".equals(s_type)'>
+			AND a.level = #{level}
+		</if>
+		<if test='"2".equals(s_type)'>
+			AND a.level <![CDATA[ <= ]]> #{level}
+		</if>
+		<if test='"3".equals(s_type)'>
+			AND a.level <![CDATA[ < ]]> #{level}
+		</if>
+		<if test='"4".equals(s_type)'>
+			AND a.level <![CDATA[ >= ]]> #{level}
+		</if>
+		<if test='"5".equals(s_type)'>
+			AND a.level <![CDATA[ > ]]> #{level}
+		</if>
+		<if test='"6".equals(s_type)'>
+			AND a.tree_seq in( SELECT tree_seq FROM t_tree_user_mapp WHERE user_id = #{user_id} )
+		</if>
+		<if test='use_yn != null and !"".equals(use_yn)'>
+			AND a.use_yn = #{use_yn}
+		</if>
+		ORDER BY a.sort
+	</select>
+	
+	<select id="getTreeListFromParent" parameterType="treeInfoBean" resultType="treeInfoBean">
+		WITH RECURSIVE tree_query (
+			tree_seq, p_tree_seq, tree_nm, depth_ord, sort, tree_desc, level, dvc_seq, tree_kd, use_yn, gen_by, gen_dt, mdfy_by, mdfy_dt
+		) AS (
+			SELECT
+				t1.tree_seq
+				, t1.p_tree_seq
+				, t1.tree_nm
+				, t1.depth_ord
+				, TO_CHAR( CAST( (t1.depth_ord) AS int8), '09999999') AS sort
+				, t1.tree_desc
+				, 1 AS level
+				, t1.dvc_seq
+				, t1.tree_kd
+				, t1.use_yn
+				, t1.gen_by, t1.gen_dt, t1.mdfy_by, t1.mdfy_dt
+			FROM t_tree_info t1
+			WHERE t1.tree_seq = #{tree_seq}
+		    UNION ALL
+		    SELECT
+				t2.tree_seq
+				, t2.p_tree_seq
+				, t2.tree_nm
+				, t2.depth_ord
+				, CONCAT(t3.sort, ' > ', TO_CHAR( CAST( (t2.depth_ord ) AS int8), '09999999')) AS sort
+				, t2.tree_desc
+				, t3.level +1
+				, t2.dvc_seq
+				, t2.tree_kd
+				, t2.use_yn
+				, t2.gen_by, t2.gen_dt, t2.mdfy_by, t2.mdfy_dt
+			FROM t_tree_info t2
+			INNER JOIN tree_query t3 
+				ON t2.p_tree_seq = t3.tree_seq
+		)
+		SELECT
+			a.tree_seq, a.p_tree_seq, a.tree_nm, a.tree_desc, a.level, a.sort, a.depth_ord
+			, a.use_yn
+			, (select count(*) from t_tree_info dd where a.p_tree_seq = dd.p_tree_seq) AS depth_cnt
+			, (select count(*) from t_tree_info ee where a.tree_seq = ee.p_tree_seq) AS child_cnt
+			, a.dvc_seq
+			, b.dvc_id
+			, b.dvc_nm
+		 	, a.tree_kd
+			, (SELECT cd_val FROM t_cm_cd where cat_cd = 'TREE_KD' and cd = a.tree_kd) AS tree_kd_nm
+			, a.gen_by, a.gen_dt, a.mdfy_by, a.mdfy_dt
+		FROM tree_query a
+		LEFT OUTER JOIN t_dvc_info b
+			ON a.dvc_seq = b.dvc_seq
+		WHERE 1=1
+		<if test='use_yn != null and !"".equals(use_yn)'>
+			AND a.use_yn = #{use_yn}
+		</if>
+<!-- 		ORDER BY a.sort -->
+		ORDER BY 1
+	</select>
+
+	<select id="getTreeDetail" parameterType="treeInfoBean" resultType="treeInfoBean">
+		SELECT
+			t1.tree_seq
+			, t1.p_tree_seq
+			, t1.tree_nm
+			, t1.tree_desc
+			, t1.depth_ord
+			, t1.use_yn
+			, t1.dvc_seq
+			, t1.tree_kd
+			, t1.gen_by, t1.gen_dt, t1.mdfy_by, t1.mdfy_dt
+			, (SELECT COUNT(*) FROM t_tree_info dd WHERE t1.p_tree_seq = dd.p_tree_seq) AS depth_cnt
+			, (SELECT COUNT(*) FROM t_tree_info ee WHERE t1.tree_seq = ee.p_tree_seq) AS child_cnt
+			, (SELECT cd_val FROM t_cm_cd WHERE cat_cd = 'TREE_KD' AND cd = t1.tree_kd) AS tree_kd_nm
+		FROM t_tree_info t1
+		WHERE t1.tree_seq = #{tree_seq}
+	</select>
+	
+	<!-- 트리 저장 -->
+	<insert id="insertTreeInfo" parameterType="treeInfoBean" useGeneratedKeys="true" keyProperty="tree_seq">
+		INSERT INTO t_tree_info (
+			tree_seq, p_tree_seq
+			, tree_nm, depth_ord, tree_desc
+			, dvc_seq, tree_kd, use_yn
+			, gen_by, gen_dt
+		) VALUES (
+			(select coalesce(max(tree_seq), 0) from t_tree_info) + 1, #{p_tree_seq}
+			, #{tree_nm}, #{depth_ord}, #{tree_desc}
+			, #{dvc_seq}, #{tree_kd}, #{use_yn}
+			, #{login_user_id}, now()
+		)
+	</insert>
+	
+	<insert id="insertTreeUserMapp" parameterType="treeInfoBean">
+		INSERT INTO t_tree_user_mapp (
+			tree_seq, user_id
+		) VALUES (
+			CAST(#{tree_seq} AS INT), #{user_id}
+		)
+	</insert>
+	
+	<insert id="insertTreeUserMappByPtree" parameterType="treeInfoBean">
+		INSERT INTO t_tree_user_mapp 
+			(tree_seq, user_id) 
+		SELECT 
+			#{tree_seq}
+			, t2.user_id
+		FROM t_tree_info t1
+		INNER JOIN t_tree_user_mapp t2
+			ON t1.tree_seq = t2.tree_seq
+		WHERE t1.tree_seq = #{p_tree_seq}
+	</insert>
+	
+	<!-- Delete Tree User Map  -->
+	<delete id="deleteTreeUserMap" parameterType="treeInfoBean" >
+	DELETE FROM t_tree_user_mapp
+	<where>
+		<if test='tree_seq != null and !"".equals(tree_seq)'>
+			AND tree_seq = #{tree_seq}
+		</if>
+		<if test='user_id != null and !"".equals(user_id)'>
+			AND user_id = #{user_id}
+		</if>
+	</where>
+	</delete>
+	<!-- END Delete Tree User Map -->
+	
+	<!-- 트리 수정 -->
+	<update id="updateTreeInfo" parameterType="treeInfoBean">
+		UPDATE t_tree_info
+		SET 		
+			tree_nm					= #{tree_nm}
+			, tree_desc				= #{tree_desc}
+			, dvc_seq				= #{dvc_seq}
+			, tree_kd				= #{tree_kd}
+			, use_yn				= #{use_yn}
+			, mdfy_by				= #{login_user_id}
+			, mdfy_dt				= now()
+		WHERE tree_seq = #{tree_seq}
+	</update>
+
+	<!-- 트리 순번 갱신 -->
+	<update id="updateTreeInfoOrder" parameterType="treeInfoBean">
+		UPDATE t_tree_info
+		SET 
+			mdfy_by				= #{login_user_id}
+			, mdfy_dt			= now()
+			, depth_ord			= #{depth_ord}
+		WHERE tree_seq = #{tree_seq}
+	</update>
+
+	<!-- 다른 부모 노드로 이동시 -->
+	<update id="moveTreeOtherNode" parameterType="treeInfoBean">
+		UPDATE t_tree_info
+		SET
+			mdfy_by				= #{login_user_id} 
+			, mdfy_dt			= now()
+			, p_tree_seq		= #{p_tree_seq}
+			, depth_ord			= #{depth_ord}
+		WHERE tree_seq = #{tree_seq}
+	</update>
+	
+	<!-- 해당 부모의 max 순번을 가지고 온다 -->
+	<select id="getTreeMaxDepthOrd" parameterType="int" resultType="int">
+		SELECT 
+			COALESCE(MAX(depth_ord), 0) + 1 as depth_ord
+		FROM t_tree_info
+		WHERE p_tree_seq = #{p_tree_seq}
+	</select>
+	
+	<!-- 순서를 위로 올리기 위해 현재 순번 보다 작은거 데이터를 가지고 오기 위함 -->
+	<select id="getUpOrderTree" parameterType="treeInfoBean" resultType="treeInfoBean">
+		SELECT
+			t1.tree_seq
+			, t1.p_tree_seq
+			, t1.tree_nm
+			, t1.tree_desc
+			, t1.depth_ord
+			, t1.use_yn
+			, t1.dvc_seq
+			, t1.tree_kd
+			, t1.gen_by, t1.gen_dt, t1.mdfy_by, t1.mdfy_dt
+		FROM t_tree_info t1
+		WHERE t1.p_tree_seq = #{p_tree_seq}
+			AND t1.depth_ord <![CDATA[ < ]]> #{depth_ord}
+		ORDER BY t1.depth_ord DESC
+		LIMIT 1
+	</select>
+		
+		
+	<!--  순서를 아래로 내리기 위해 현재 순번 보다 작은거 데이터를 가지고 오기 위함 -->
+	<select id="getDownOrderTree" parameterType="treeInfoBean" resultType="treeInfoBean">
+		SELECT
+			t1.tree_seq
+			, t1.p_tree_seq
+			, t1.tree_nm
+			, t1.tree_desc
+			, t1.depth_ord
+			, t1.use_yn
+			, t1.dvc_seq
+			, t1.tree_kd
+			, t1.gen_by, t1.gen_dt, t1.mdfy_by, t1.mdfy_dt
+		FROM t_tree_info t1
+		WHERE t1.p_tree_seq = #{p_tree_seq}
+			AND t1.depth_ord <![CDATA[ > ]]> #{depth_ord}
+		ORDER BY t1.depth_ord ASC
+		LIMIT 1
+	</select>	
+	
+	<!-- 트리순서, 한칸씩 앞으로 -->
+	<update id="shiftForwardTreeOrder" parameterType="treeInfoBean" >
+		UPDATE t_tree_info
+		SET 
+			mdfy_by = #{login_user_id}
+			, mdfy_dt = now()
+			, depth_ord = depth_ord - 1
+		WHERE p_tree_seq = #{p_tree_seq}
+			AND depth_ord <![CDATA[ > ]]> #{depth_ord}
+	</update>
+
+	<update id="updateTreeUseYn" parameterType="treeInfoBean">
+		WITH RECURSIVE tree_query (
+			tree_seq, tree_nm, p_tree_seq
+		) AS (
+			SELECT
+				ti.tree_seq
+				, ti.tree_nm
+				, ti.p_tree_seq
+			FROM t_tree_info ti
+			WHERE ti.p_tree_seq = #{p_tree_seq}
+	        	and ti.tree_seq = #{tree_seq}
+		    UNION ALL
+		    SELECT
+				b.tree_seq
+				, b.tree_nm
+				, b.p_tree_seq
+			FROM t_tree_info b
+			INNER JOIN tree_query c 
+				ON b.p_tree_seq = c.tree_seq 
+		)
+		UPDATE t_tree_info
+		SET use_yn = #{use_yn}
+		WHERE tree_seq IN (SELECT tree_seq FROM tree_query)
+	</update>
+	
+	<!-- 트리 갯수 가져오기 -->
+<!-- 	<select id="getTreeListCountByParentTreeSeq" parameterType="treeInfoBean" resultType="int"> -->
+<!-- 		select -->
+<!-- 			count(*) -->
+<!-- 		from t_tree_info -->
+<!-- 		where p_tree_seq = #{p_tree_seq} -->
+<!-- 	</select> -->
+	<!-- End 트리 갯수 가져오기 -->
+	
+	<!-- Tree User Map List  -->
+	<select id="getTreeUserMapByTreeSeq" parameterType="treeInfoBean" resultType="hmap">
+		SELECT 
+			CASE WHEN t2.user_id IS NULL 
+				THEN 'false' 
+				ELSE 'true' 
+			END AS checked
+			, t1.user_id
+			, t1.user_nm
+		FROM t_user_info t1
+		LEFT OUTER JOIN t_tree_user_mapp t2
+			ON t1.user_id = t2.user_id
+				AND t2.tree_seq = #{tree_seq}
+	</select>
+	<!-- END Address Tmplt Map Dvc List  -->
+	
+	<!-- 신규 장치그룹관리 하위 트리 -->
+	<select id="getDvcChildTreeList" parameterType="treeInfoBean" resultType="treeInfoBean">
+		WITH RECURSIVE tree_query (
+			tree_seq, p_tree_seq, tree_nm, depth_ord, sort, tree_desc, level, dvc_seq, tree_kd, use_yn, gen_by, gen_dt, mdfy_by, mdfy_dt
+		) AS (
+			SELECT
+				t1.tree_seq
+				, t1.p_tree_seq
+				, t1.tree_nm
+				, t1.depth_ord
+				, TO_CHAR( CAST( (t1.depth_ord) AS int8), '09999999') AS sort
+				, t1.tree_desc
+				, 1 AS level
+				, t1.dvc_seq
+				, t1.tree_kd
+				, t1.use_yn
+				, t1.gen_by, t1.gen_dt, t1.mdfy_by, t1.mdfy_dt
+			FROM t_tree_info t1
+			WHERE t1.tree_seq = #{tree_seq}
+		    UNION ALL
+		    SELECT
+				t2.tree_seq
+				, t2.p_tree_seq
+				, t2.tree_nm
+				, t2.depth_ord
+				, CONCAT(t3.sort, ' > ', TO_CHAR( CAST( (t2.depth_ord ) AS int8), '09999999')) AS sort
+				, t2.tree_desc
+				, t3.level +1
+				, t2.dvc_seq
+				, t2.tree_kd
+				, t2.use_yn
+				, t2.gen_by, t2.gen_dt, t2.mdfy_by, t2.mdfy_dt
+			FROM t_tree_info t2
+			INNER JOIN tree_query t3 
+				ON t2.p_tree_seq = t3.tree_seq
+		)
+		SELECT
+			a.tree_seq
+			, a.tree_seq as id
+			, a.p_tree_seq
+			, case when a.p_tree_seq = 0 then null else a.p_tree_seq end as parentId
+			, a.tree_nm, a.tree_desc, a.level, a.sort, a.depth_ord
+			, a.use_yn
+			, (select count(*) from t_tree_info dd where a.p_tree_seq = dd.p_tree_seq) AS depth_cnt
+			, (select count(*) from t_tree_info ee where a.tree_seq = ee.p_tree_seq) AS child_cnt
+			, a.dvc_seq
+			, b.dvc_id
+			, b.dvc_nm
+		 	, a.tree_kd
+			, (SELECT cd_val FROM t_cm_cd where cat_cd = 'TREE_KD' and cd = a.tree_kd) AS tree_kd_nm
+			, a.gen_by, a.gen_dt, a.mdfy_by, a.mdfy_dt
+		FROM tree_query a
+		LEFT OUTER JOIN t_dvc_info b
+			ON a.dvc_seq = b.dvc_seq
+		WHERE 1=1
+		<if test='use_yn != null and !"".equals(use_yn)'>
+			AND a.use_yn = #{use_yn}
+		</if>
+		ORDER BY 1
+	</select>
+	
+	<!-- 장치그룹관리 엑셀 다운로드 -->
+	<select id="getTreeExcelData" parameterType="hmap" resultType="hmap">
+        SELECT tree_seq, p_tree_seq, tree_nm, depth_ord, tree_desc, dvc_seq, tree_kd, use_yn
+		FROM t_tree_info
+		ORDER BY tree_seq
+	</select>
+	
+	<delete id ="deleteTreeByUpload" parameterType="hmap">
+		DELETE FROM t_tree_info
+	</delete>
+	
+	<insert id="insertTreeInfoByUpload" parameterType="treeInfoBean">
+		INSERT INTO public.t_tree_info
+		(
+			tree_seq
+			, p_tree_seq
+			, tree_nm
+			, depth_ord
+			, tree_desc
+			, dvc_seq
+			, tree_kd
+			, use_yn
+			, gen_by
+			, gen_dt
+		) VALUES (
+			#{tree_seq}
+			, #{p_tree_seq}
+			, #{tree_nm}
+			, #{depth_ord}
+			, #{tree_desc}
+			, #{dvc_seq}
+			, #{tree_kd}
+			, #{use_yn}
+			, #{gen_by}
+			, now()
+		)
+	</insert>
+</mapper>

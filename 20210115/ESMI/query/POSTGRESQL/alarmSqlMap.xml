@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:59 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="alarmSqlMap">
+
+	<!-- 알람 룰 목록 조회 -->
+	<select id="getAlarmRuleInfoList" parameterType="alarmBean" resultType="alarmBean">
+		select a.alarm_rule_seq
+		     , a.alarm_rule_nm
+		     , a.alarm_msg
+		     , a.tot_dvc_yn
+		     , a.alarm_type, c1.cd_val as alarm_type_nm
+		     , a.chk_attr_1, a.chk_data_1, a.chk_attr_2, a.chk_data_2, a.chk_duration
+		     , fnalarmconditionlabel(a.alarm_type, a.chk_attr_1, a.chk_data_1, a.chk_attr_2, a.chk_data_2, a.chk_duration) as chk_op_label
+		     , a.chk_tm_yn, a.chk_start_tm, a.chk_finish_tm
+		     , fnalarmtimelabel(a.chk_tm_yn, a.chk_start_tm, a.chk_finish_tm) as chk_time_label
+		     , concat(substr(a.chk_start_tm, 1, 2), ':', substr(a.chk_start_tm, 3, 2)) as chk_start_tm
+		     , concat(substr(a.chk_finish_tm, 1, 2), ':', substr(a.chk_finish_tm, 3, 2)) as chk_finish_tm
+		     , a.alarm_lvl, c2.cd_val as alarm_lvl_nm
+		     , a.alarm_state, c3.cd_val as alarm_state_nm
+		     , a.alarm_interval
+		     , a.use_yn
+		     , a.noti_yn
+		     , a.beep_sec
+		     , a.gen_by, u1.user_nm as gen_user_nm
+		     , a.cep_str
+		from t_alarm_rule_info a
+		left outer join t_cm_cd c1 on c1.cat_cd = 'ALARM_TYPE' and a.alarm_type = c1.cd
+		left outer join t_cm_cd c2 on c2.cat_cd = 'ALARM_LEVEL' and a.alarm_lvl = c2.cd
+		left outer join t_cm_cd c3 on c3.cat_cd = 'ALARM_STATE' and a.alarm_state = c2.cd
+		left outer join t_user_info u1 on a.gen_by = u1.user_id
+		<where>
+			<if test='"add".equals(action_type)'>
+				and a.alarm_rule_seq = -1
+			</if>
+			<if test='alarm_rule_seq != null and alarm_rule_seq != 0'>
+				and a.alarm_rule_seq = #{alarm_rule_seq}
+			</if>
+			<if test='alarm_type != null and !"".equals(alarm_type)'>
+				and a.alarm_type = #{alarm_type}
+			</if>
+			<if test='alarm_rule_nm != null and !"".equals(alarm_rule_nm)'>
+				and a.alarm_rule_nm like concat('%', #{alarm_rule_nm}, '%')
+			</if>
+			<if test='dvc_nm != null and !"".equals(dvc_nm)'>
+				and (a.tot_dvc_yn = 'Y' or a.alarm_rule_seq in 
+					(
+						select distinct s1.alarm_rule_seq 
+						from t_alarm_rule_mapp s1
+						inner join t_dvc_info s2 on s1.dvc_seq = s2.dvc_seq
+						where s2.dvc_nm like concat('%', #{dvc_nm}, '%')						
+					)
+				)
+			</if>
+		</where>
+		order by a.alarm_type, a.alarm_rule_nm
+	</select>
+
+	<!-- 알람 룰 조회 -->
+	<select id="getAlarmRuleInfo" parameterType="alarmBean" resultType="alarmBean">
+		select a.alarm_rule_seq
+		     , a.alarm_rule_nm
+		     , a.alarm_msg
+		     , a.tot_dvc_yn
+		     , a.alarm_type, c1.cd_val as alarm_type_nm
+		     , a.chk_attr_1, a.chk_data_1, a.chk_attr_2, a.chk_data_2, a.chk_duration
+		     , fnalarmconditionlabel(a.alarm_type, a.chk_attr_1, a.chk_data_1, a.chk_attr_2, a.chk_data_2, a.chk_duration) as chk_op_label
+		     , a.chk_tm_yn, a.chk_start_tm, a.chk_finish_tm
+		     , fnalarmtimelabel(a.chk_tm_yn, a.chk_start_tm, a.chk_finish_tm) as chk_time_label
+		     , concat(substr(a.chk_start_tm, 1, 2), ':', substr(a.chk_start_tm, 3, 2)) as chk_start_tm
+		     , concat(substr(a.chk_finish_tm, 1, 2), ':', substr(a.chk_finish_tm, 3, 2)) as chk_finish_tm
+		     , a.alarm_lvl, c2.cd_val as alarm_lvl_nm
+		     , a.alarm_state, c3.cd_val as alarm_state_nm
+		     , a.alarm_interval
+		     , a.use_yn
+		     , a.noti_yn
+		     , a.beep_sec
+		     , a.gen_by, u1.user_nm as gen_user_nm
+		     , a.cep_str
+		from t_alarm_rule_info a
+		left outer join t_cm_cd c1 on c1.cat_cd = 'ALARM_TYPE' and a.alarm_type = c1.cd
+		left outer join t_cm_cd c2 on c2.cat_cd = 'ALARM_LEVEL' and a.alarm_lvl = c2.cd
+		left outer join t_cm_cd c3 on c3.cat_cd = 'ALARM_STATE' and a.alarm_state = c2.cd
+		left outer join t_user_info u1 on a.gen_by = u1.user_id
+		WHERE a.alarm_rule_seq = #{alarm_rule_seq}
+		order by a.alarm_type, a.alarm_rule_nm
+	</select>
+	
+	<!-- 알람 룰 정보 입력 -->
+	<insert id="insertAlarmRuleInfo" parameterType="alarmBean" useGeneratedKeys="true" keyProperty="alarm_rule_seq">
+		insert into t_alarm_rule_info
+		(
+			alarm_rule_nm
+			, alarm_msg
+			, tot_dvc_yn
+			, alarm_type
+			,alarm_rule_type
+			, chk_attr_1, chk_data_1, chk_attr_2, chk_data_2, chk_duration
+			, chk_tm_yn, chk_start_tm, chk_finish_tm
+			, alarm_lvl
+			, alarm_state
+			, alarm_interval
+			, use_yn
+			, noti_yn
+			, beep_sec
+			, cep_str
+			, gen_by
+		) values (
+			#{alarm_rule_nm}
+			, #{alarm_msg}
+			, #{tot_dvc_yn}
+			, #{alarm_type}
+			, #{alarm_rule_type}
+			, #{chk_attr_1}, #{chk_data_1}, #{chk_attr_2}, #{chk_data_2}, #{chk_duration}
+			, #{chk_tm_yn}, #{chk_start_tm}, #{chk_finish_tm}
+			, #{alarm_lvl}
+			, #{alarm_state}
+			, #{alarm_interval}
+			, #{use_yn}
+			, #{noti_yn}
+			, #{beep_sec}
+			, #{cep_str}
+			, #{login_user_id}
+		)
+		<selectKey resultType="Integer" keyProperty="alarm_rule_seq" order="AFTER">select lastval() as seq</selectKey>
+	</insert>
+
+	<!-- 알람 룰 정보 수정 -->
+	<update id="updateAlarmRuleInfo" parameterType="alarmBean">
+		update t_alarm_rule_info
+		set 
+			alarm_rule_nm = #{alarm_rule_nm}
+			, alarm_msg = #{alarm_msg}
+			, tot_dvc_yn = #{tot_dvc_yn}
+			, alarm_type = #{alarm_type}
+			, chk_attr_1 = #{chk_attr_1}
+			, chk_data_1 = #{chk_data_1}
+			, chk_attr_2 = #{chk_attr_2}
+			, chk_data_2 = #{chk_data_2}
+			, chk_duration = #{chk_duration}
+			, chk_tm_yn = #{chk_tm_yn}
+			, chk_start_tm = #{chk_start_tm}
+			, chk_finish_tm = #{chk_finish_tm}
+			, alarm_lvl = #{alarm_lvl}
+			, alarm_state = #{alarm_state}
+			, alarm_interval = #{alarm_interval}
+			, use_yn = #{use_yn}
+			, noti_yn = #{noti_yn}
+			, beep_sec = #{beep_sec}
+			, cep_str = #{cep_str}
+			, mdfy_by = #{login_user_id}
+			, mdfy_dt = now()
+		where alarm_rule_seq = #{alarm_rule_seq} 
+	</update>
+
+	<!-- 알람 룰 정보 삭제 -->
+	<delete id="deleteAlarmRuleInfo" parameterType="alarmBean">
+		delete from t_alarm_rule_info
+		where alarm_rule_seq = #{alarm_rule_seq} 
+	</delete>
+	
+	<!-- 알람 룰 맵핑 장치&변수 목록 조회 -->
+	<select id="getAlarmRuleMappList" parameterType="alarmBean" resultType="alarmBean">
+		select a.alarm_rule_mapp_seq
+		     , a.alarm_rule_seq
+		     , a.dvc_seq
+		     , b.dvc_id
+		     , b.dvc_nm
+		     , a.var_seq
+		     , c.var_id
+		     , c.var_nm
+		from t_alarm_rule_mapp a
+		left outer join t_dvc_info b on a.dvc_seq = b.dvc_seq
+		left outer join t_var_info c on a.var_seq = c.var_seq
+		where a.alarm_rule_seq = #{alarm_rule_seq}
+		order by a.dvc_seq, a.var_seq
+	</select>
+
+	<!-- 알람 룰 맵핑 장치&변수 목록 삭제 -->
+	<delete id="deleteAlarmRuleMapp" parameterType="alarmBean">
+		delete from t_alarm_rule_mapp
+		where alarm_rule_seq = #{alarm_rule_seq}
+	</delete>
+	
+	<!-- 알람 룰 맵핑 장치&변수 입력 -->
+	<insert id="insertAlarmRuleMapp" parameterType="alarmBean">
+		insert into t_alarm_rule_mapp
+		(alarm_rule_seq, dvc_seq, var_seq)
+		values
+		(#{alarm_rule_seq}, #{dvc_seq}, #{var_seq})
+	</insert>
+	
+	<!-- 알람 룰 맵핑 통지 목록 조회 -->
+	<select id="getAlarmRuleNotiMappList" parameterType="alarmBean" resultType="alarmBean">
+		select a.alarm_rule_seq
+		     , a.noti_seq
+		     , b.noti_type
+		     , c1.cd_val as noti_type_nm
+		from t_alarm_rule_noti_mapp a
+		left outer join t_noti_info b on a.noti_seq = b.noti_seq
+		left outer join t_cm_cd c1 on c1.cat_cd = 'NOTI_TYPE' and b.noti_type = c1.cd
+		where a.alarm_rule_seq = #{alarm_rule_seq}
+		order by a.noti_seq
+	</select>
+	
+	<!-- 알람 룰 맵핑 통지 목록 삭제 -->
+	<delete id="deleteAlarmRuleNotiMapp" parameterType="alarmBean">
+		delete from t_alarm_rule_noti_mapp
+		where alarm_rule_seq = #{alarm_rule_seq}
+	</delete>
+
+	<!-- 알람 룰 맵핑 통지 입력 -->
+	<insert id="insertAlarmRuleNotiMapp" parameterType="alarmBean">
+		insert into t_alarm_rule_noti_mapp
+		(alarm_rule_seq, noti_seq)
+		values
+		(#{alarm_rule_seq}, #{noti_seq})
+	</insert>
+	
+	<!-- tree (load) -->
+	<select id="getLoadTree" parameterType="alarmBean" resultType="hmap">
+		select case when t2.alarm_rule_mapp_seq is null then 'false' else 'true' end as checked
+			 , t1.dvc_seq
+			 , t1.dvc_id
+			 , t1.dvc_nm
+		from t_dvc_info t1
+		left outer join t_alarm_rule_mapp t2
+		  on t1.dvc_seq = t2.dvc_seq
+		 and t2.alarm_rule_seq = #{alarm_rule_seq}
+		WHERE t1.use_yn = 'Y'
+		ORDER BY dvc_id asc
+	</select>
+	
+	<!-- tree (variable) -->
+	<select id="getVariableTree" parameterType="alarmBean" resultType="hmap">
+		select case when t2.alarm_rule_mapp_seq is null then 'false' else 'true' end as checked
+			 , t1.var_seq
+			 , t1.var_id
+			 , t1.var_nm
+		from t_var_info t1
+		left outer join t_alarm_rule_mapp t2
+		  on t1.var_seq = t2.var_seq
+		 and t2.alarm_rule_seq = #{alarm_rule_seq}
+		where use_yn = 'Y' 
+		order by var_id asc
+	</select>
+	
+	<!-- 알람룰 - 통지 대상 select box -->
+	<select id="getNotiMappList" resultType="hmap">
+		select case when t2.alarm_rule_seq is null then 'false' else 'true' end as checked
+			 , t1.noti_seq
+			 , t1.noti_type
+			 , (select cd_val from t_cm_cd where cat_cd = 'NOTI_TYPE' and cd = t1.noti_type) as noti_type_nm
+			 , t1.noti_nm
+			 , case when t1.noti_type = 'EMAIL' then
+			 			concat('{발신메일: ', noti_attr_1, ', 메일제목: ', noti_attr_2, '}')
+			 		when t1.noti_type = 'SMS' then
+			 			concat('{통신사: ', noti_attr_1, ', 발신번호: ', noti_attr_2, '}')
+			 		end as noti_attr
+		from t_noti_info t1
+		left outer join t_alarm_rule_noti_mapp t2
+		  on t1.noti_seq = t2.noti_seq
+		 and t2.alarm_rule_seq = #{alarm_rule_seq}
+		 order by noti_seq asc
+	</select>
+	
+	
+<!-- 알람 리스트 -->
+	<!-- 알람 리스트 조회 -->
+	<select id="getAlarmList" parameterType="alarmBean" resultType="alarmBean">
+		SELECT t1.alarm_seq, t2.alarm_rule_nm
+			 , t2.alarm_type
+			 , t7.cd_val AS alarm_type_nm
+			 , t1.alarm_lvl
+			 , t3.cd_val AS alarm_lvl_nm
+			 , t1.dvc_id, t5.dvc_nm
+			 , t1.var_id, t6.var_nm
+			 , t1.alarm_data_val
+			 , TO_CHAR(t1.gen_dt, 'yyyy-mm-dd HH24:MI:ss') AS gen_dt
+			 , t1.alarm_state
+			 , t4.cd_val AS alarm_state_nm
+			 , t1.cnfrm_msg
+			 , t1.accu_cnt
+			 , t1.mdfy_by
+			 , TO_CHAR(t1.mdfy_dt, 'yyyy-mm-dd HH24:MI:ss') AS mdfy_dt
+		  FROM t_alarm_list t1
+		  LEFT OUTER JOIN t_alarm_rule_info t2
+		    ON t1.alarm_rule_seq = t2.alarm_rule_seq
+		  LEFT OUTER JOIN t_cm_cd t3
+		    ON t3.cat_cd = 'ALARM_LEVEL' 
+		   		AND t1.alarm_lvl = t3.cd
+		  LEFT OUTER JOIN t_cm_cd t4
+		    ON t4.cat_cd = 'ALARM_STATE' 
+		   		AND t1.alarm_state = t4.cd
+		  LEFT OUTER JOIN t_dvc_info t5
+		    ON t1.dvc_id = t5.dvc_id
+		  LEFT OUTER JOIN t_var_info t6
+		    ON t1.var_id = t6.var_id
+		  LEFT OUTER JOIN t_cm_cd t7
+		    ON t7.cat_cd = 'ALARM_TYPE' 
+		  		AND t2.alarm_type = t7.cd
+		<where>
+			<if test='startdate != null and !"".equals(startdate)'>
+				AND t1.gen_dt BETWEEN TO_TIMESTAMP(#{startdate}, 'yyyy-mm-dd') AND TO_TIMESTAMP(CONCAT(#{enddate}, ' 23:59:59'), 'yyyy-mm-dd HH24:MI:ss')
+			</if>
+			<if test='alarm_seq != null and !"".equals(alarm_seq)'>
+				AND t1.alarm_seq = #{alarm_seq}
+			</if>
+			<if test='alarm_type != null and !"".equals(alarm_type)'>
+				AND t2.alarm_type = #{alarm_type}
+			</if>
+			<if test='alarm_lvl != null and !"".equals(alarm_lvl)'>
+				AND t1.alarm_lvl = #{alarm_lvl}
+			</if>
+			<if test='alarm_rule_nm != null and !"".equals(alarm_rule_nm)'>
+				AND t2.alarm_rule_nm LIKE CONCAT('%', #{alarm_rule_nm}, '%')
+			</if>
+			<if test='alarm_state != null and !"".equals(alarm_state)'>
+				AND t1.alarm_state = #{alarm_state}
+			</if>
+			<if test='dvc_nm != null and !"".equals(dvc_nm)'>
+				AND t5.dvc_nm LIKE CONCAT('%', #{dvc_nm}, '%')
+			</if>
+			<if test='var_id != null and !"".equals(var_id)'>
+				AND t1.var_id LIKE CONCAT('%', #{var_id}, '%')
+			</if>
+		</where>
+		 ORDER BY t1.alarm_seq DESC
+	</select>
+	
+	<!-- 알람 리스트 수정 -->
+	<update id="updateAlarmList" parameterType="alarmBean">
+		update t_alarm_list
+		   set alarm_state	= #{alarm_state}
+		     , cnfrm_msg	= #{cnfrm_msg}
+		     , mdfy_by		= #{login_user_id}
+		     , mdfy_dt		= now()
+		 <where>
+			<if test='"modify".equals(action_type)'>
+				and alarm_seq = #{alarm_seq}
+			</if>
+			<if test='"modify_batch".equals(action_type)'>
+				AND alarm_seq IN ( ${alarm_seq_str} )
+			</if>
+			<if test='!"modify".equals(action_type) and !"modify_batch".equals(action_type)'>
+				and alarm_seq = -1
+			</if>
+		 </where>
+	</update>
+<!-- 알람 리스트 END -->
+
+<!-- 알람 통지 관리 -->
+	<!-- 알람 통지 조회 -->
+	<select id="getAlarmNotiInfoList" parameterType="alarmBean" resultType="alarmBean">
+		select t1.noti_seq
+			 , t1.noti_type, t2.cd_val as noti_type_nm
+			 , t1.noti_nm
+			 , noti_attr_1
+			 , noti_attr_2
+			 , noti_attr_3
+			 , noti_attr_4
+			 , case when t1.noti_type = 'EMAIL' then
+			 			concat('{발신메일: ', noti_attr_1, ', 메일제목: ', noti_attr_2, '}')
+			 		when t1.noti_type = 'SMS' then
+			 			concat('{통신사: ', noti_attr_1, ', 발신번호: ', noti_attr_2, '}')
+			 		end as noti_attr
+			 , case when (select count(*) from t_alarm_rule_noti_mapp where noti_seq = t1.noti_seq) > 0 then
+			 			'Y'
+			 		else 'N' end as mapping_yn
+		  from t_noti_info t1
+		  left outer join t_cm_cd t2
+		    on t2.cat_cd = 'NOTI_TYPE'
+		   and t1.noti_type = t2.cd
+		<where>
+			<if test='noti_seq != null and !"".equals(noti_seq)'>
+				and t1.noti_seq = #{noti_seq}
+			</if>
+			<if test='noti_type != null and !"".equals(noti_type)'>
+				and t1.noti_type = #{noti_type}
+			</if>
+			<if test='noti_attr != null and !"".equals(noti_attr)'>
+				and (
+					t1.noti_attr_1 like concat('%', #{noti_attr}, '%')
+					or
+					t1.noti_attr_2 like concat('%', #{noti_attr}, '%')
+				)
+			</if>
+		</where>
+		 order by noti_seq desc
+	</select>
+	
+	<!-- 통지 - 사용자 맵핑 리스트 -->
+	<select id="getNotiUserMappList" parameterType="alarmBean" resultType="hmap">
+		select t1.user_id
+			 , t1.user_nm
+			 , case when t2.user_id is not null then 'true' else 'false' end as checked
+		  from t_user_info t1
+		  left outer join t_noti_user_mapp t2
+		    on t1.user_id = t2.user_id
+		   and t2.noti_seq = #{noti_seq}
+	</select>
+	
+	<!-- 통지 관리 insert -->
+	<insert id="insertAlarmNotiInfo" parameterType="alarmBean">
+		insert into t_noti_info
+		(noti_type, noti_nm, noti_attr_1, noti_attr_2, noti_attr_3, noti_attr_4)
+		values
+		(#{noti_type}, #{noti_nm}, #{noti_attr_1}, #{noti_attr_2}, #{noti_attr_3}, #{noti_attr_4})
+		<selectKey resultType="Integer" keyProperty="noti_seq" order="AFTER">select lastval() as seq</selectKey>
+	</insert> 
+	
+	<!-- 통지 정보 수정 -->
+	<update id="updateAlarmNotiInfo" parameterType="alarmBean">
+		update t_noti_info
+		   set noti_type   = #{noti_type}
+		     , noti_nm	   = #{noti_nm}
+		     , noti_attr_1 = #{noti_attr_1}
+		     , noti_attr_2 = #{noti_attr_2}
+		     , noti_attr_3 = #{noti_attr_3}
+		     , noti_attr_4 = #{noti_attr_4}
+		 where noti_seq = #{noti_seq}
+	</update>
+	
+	<!-- 통지 정보 삭제 -->
+	<update id="deleteAlarmNotiInfo" parameterType="alarmBean">
+		delete from t_noti_info
+		 where noti_seq = #{noti_seq}
+	</update>
+	
+	<!-- 통지정보 - 사용자 맵핑 삭제 -->
+	<delete id="deleteAlarmNotiUserMapp" parameterType="alarmBean">
+		delete from t_noti_user_mapp
+		<where>
+			<if test='noti_seq != null and !"".equals(noti_seq)'>
+			AND noti_seq = #{noti_seq}
+			</if>
+			<if test='user_id != null and !"".equals(user_id)'>
+			AND user_id = #{user_id}
+			</if>
+		</where>
+	</delete>
+	
+	<!-- 통지정보 - 사용자 맵핑 등록 -->
+	<insert id="insertAlarmNotiUserMapp" parameterType="alarmBean">
+		insert into t_noti_user_mapp
+		(user_id, noti_seq)
+		values
+		(#{noti_user_id}, #{noti_seq}) 
+	</insert>
+	
+	<insert id="insertAlarmRuleCondInfo" parameterType="alarmRuleCondBean">
+		INSERT INTO t_alarm_rule_cond_info
+			(alarm_rule_seq, 
+			var_seq, 
+			dvc_id,
+			chk_oper, 
+			chk_attr_1, 
+			chk_data_1, 
+			chk_attr_2, 
+			chk_data_2, 
+			chk_duration)
+		VALUES(
+			#{alarm_rule_seq}
+			, #{var_seq}
+			, #{dvc_id}
+<!-- 		, (select var_seq FROM t_var_info where var_id = #{var_id}) -->
+			, #{chk_oper}
+			, #{chk_attr_1}
+			, #{chk_data_1}
+			, #{chk_attr_2}
+			, #{chk_data_2}
+			, #{chk_duration}
+		)
+	</insert>
+	
+	<delete id="deleteAlarmRuleCondInfo" parameterType="alarmBean">
+		delete from t_alarm_rule_cond_info
+		where alarm_rule_seq = #{alarm_rule_seq} 
+	</delete>
+	
+	<select id="getVarInfoList" parameterType="hmap" resultType="hmap">
+		select var_id, var_seq
+		from t_var_info
+		where use_yn = 'Y'
+	</select>
+	
+<!-- 알람 통지 관리 END -->
+</mapper>

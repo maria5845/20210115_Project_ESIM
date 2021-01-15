@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:58 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="objectSqlMap">
+
+	<!-- 메뉴/유저 관련하여 세션에 물리는 부분은 캐시 사용하도록 한다.30분간 유지 -->
+	<cache
+	  eviction="LRU"
+	  flushInterval="60000"
+	  size="1024"
+	  readOnly="true"/>
+
+	<!-- 메뉴권한/Session메뉴 관련 쿼리 START -->
+	<select id="getMenuNavi" parameterType="String" resultType="hmap">
+		select menu_no, menu_nm
+		from (
+		    select menu_no
+				, menu_nm
+				, menu_depth
+			from t_menu_info
+			where 
+				(menu_no = #{menu_no}::integer and menu_depth = 1)
+				or menu_no = (select distinct p_menu_no from t_menu_info where menu_no = #{menu_no}::integer and menu_depth = 2)
+				or menu_no = (select p_menu_no from t_menu_info where menu_no = (select p_menu_no from t_menu_info where menu_no = #{menu_no}::integer and menu_depth = 3))
+			union all
+			select menu_no
+				, menu_nm
+				, menu_depth
+			from t_menu_info
+			where 
+				(menu_no = #{menu_no}::integer and menu_depth = 2)
+				or menu_no = (select p_menu_no from t_menu_info where menu_no = #{menu_no}::integer and menu_depth = 3)
+			union all
+			select menu_no
+				, menu_nm
+				, menu_depth
+			from t_menu_info
+			where 
+				menu_no = #{menu_no}::integer and menu_depth = 3
+		) a
+		order by menu_depth asc
+	</select>
+	
+	<select id="getUserMenuAuth" parameterType="hmap" resultType="menuBean">
+	    SELECT 
+	    	t1.menu_no, t1.log_record_yn
+		FROM t_menu_info t1
+		INNER JOIN t_auth_gr_menu_mapp t2
+			ON t1.menu_no = t2.menu_no
+		INNER JOIN t_auth_gr t3
+			ON t2.auth_gr_no = t3.auth_gr_no
+		INNER JOIN t_user_auth_gr t4
+			ON t3.auth_gr_no = t4.auth_gr_no
+		INNER JOIN t_user_info t5
+			ON t4.user_id = t5.user_id
+		<where>
+			AND t5.user_id = #{user_id}
+			<if test='menu_addr != null and !"".equals(menu_addr)'>
+			AND t1.menu_addr = #{menu_addr}
+			<!-- TODO: 이부분은 권한관리에서 CUD 관리가 완성되면 적용 -->
+<!-- 				<if test='action_type != null and !"".equals(action_type)'> -->
+<!-- 					<if test='action_type.contains("add")'> -->
+<!-- 					AND t2.c = 'Y' -->
+<!-- 					</if> -->
+<!-- 					<if test='action_type.contains("modify")'> -->
+<!-- 					AND t2.u = 'Y' -->
+<!-- 					</if> -->
+<!-- 					<if test='action_type.contains("delete")'> -->
+<!-- 					AND t2.d = 'Y' -->
+<!-- 					</if> -->
+<!-- 				</if> -->
+			</if>
+			<if test='menu_no != null and !"".equals(menu_no)'>
+			AND t1.menu_no = CAST(#{menu_no} AS INT)
+			</if>
+		</where>
+		GROUP BY t1.menu_no, t1.log_record_yn
+		LIMIT 1
+	</select>
+	
+	<select id="getTopMenuList" parameterType="hmap" resultType="menuBean">
+	    select
+	    	distinct 
+	    	d.menu_no
+	    	, d.p_menu_no
+	    	, d.menu_nm
+	    	, d.menu_addr
+	    	, d.disp_ord
+	    	, d.menu_depth
+	    	, d.menu_desc
+		from t_user_auth_gr a
+		inner join t_auth_gr b
+			on a.auth_gr_no = b.auth_gr_no
+		inner join t_auth_gr_menu_mapp c
+			on b.auth_gr_no = c.auth_gr_no
+		inner join t_menu_info d
+			on c.menu_no = d.menu_no
+				and d.use_yn = 'Y'
+				and d.show_yn = 'Y'
+		where a.user_id = #{user_id}
+		  and d.menu_depth = #{menu_depth}
+		order by d.disp_ord asc
+	</select>
+	
+	<select id="getMenuByMenuSeq" parameterType="int" resultType="menuBean">
+		select
+			menu_no
+		,	p_menu_no
+		,	menu_nm
+		,	menu_addr
+		,	disp_ord
+		,	menu_depth
+		,	MENU_desc
+<!-- 		,	act_type -->
+		,   show_yn
+		,	use_yn
+		,	log_record_yn
+		,	gen_by
+		,	gen_dt
+		,	mdfy_by
+		,	mdfy_dt
+		from t_menu_info
+		where menu_no = #{menu_no}
+	</select>
+	
+	<select id="getLowestMenuSeqByUriAddr" parameterType="String" resultType="Integer">
+		SELECT
+			inner_t.menu_no
+		FROM (
+			SELECT 
+				COALESCE(menu_no, 0) AS menu_no
+				, ROW_NUMBER() OVER (ORDER BY menu_depth desc) AS rownum
+				, menu_depth
+			FROM t_menu_info
+			WHERE menu_addr LIKE CONCAT(REPLACE(#{uriAddrLikesFormat}, '_', '[_]'), '%')
+				AND use_yn = 'Y'
+		) inner_t
+		WHERE rownum = 1
+		ORDER BY inner_t.menu_depth DESC
+	</select>
+	<!-- 메뉴권한/Session메뉴 관련 쿼리 END -->
+	
+	
+	
+	<!-- 메뉴 순서, 한칸씩 뒤로 -->
+	<update id="shiftBackMenuOrder" parameterType="menuBean">
+		UPDATE t_menu_info
+		SET disp_ord = disp_ord + 1
+		WHERE disp_ord &gt;= #{disp_ord}
+			AND p_menu_no = #{p_menu_no}		
+	</update>
+	
+	<insert id="insertMenu" parameterType="menuBean" useGeneratedKeys="true" keyProperty="menu_no" >
+		INSERT INTO t_menu_info (
+			menu_no
+			, p_menu_no
+			, menu_nm
+			, menu_addr
+			, disp_ord
+			, menu_depth
+			, menu_desc
+			, act_type
+			, show_yn
+			, use_yn
+			, log_record_yn
+			, gen_by
+			, gen_dt
+		) VALUES (
+			(select coalesce(max(menu_no),0) from t_menu_info) + 1
+			, #{p_menu_no}
+			, #{menu_nm}
+			, #{menu_addr}
+			, #{disp_ord}
+			, #{menu_depth}
+			, #{menu_desc}
+			, '1111' <!-- 		, #{act_type} -->
+			, #{show_yn}
+			, #{use_yn}
+			, #{log_record_yn}
+			, #{login_user_id}
+			, now()
+		)
+	</insert>
+	
+	<!-- 해당 메뉴의 상위 메뉴에 권한 부여된 권한그룹 or 전체메뉴권한여부가 Y인 권한그룹에 해당 메뉴를 자동 추가 -->
+	<insert id="insertAuthGroupMappingForNewMenu" parameterType="menuBean">
+		INSERT INTO t_auth_gr_menu_mapp
+			(auth_gr_no, menu_no)
+		SELECT b.auth_gr_no, #{menu_no}
+		FROM t_menu_info a
+		INNER JOIN t_auth_gr_menu_mapp b ON a.menu_no = b.menu_no
+		INNER JOIN t_auth_gr c ON b.auth_gr_no = c.auth_gr_no
+		WHERE ( (a.p_menu_no = #{p_menu_no} OR a.menu_no = #{p_menu_no}) AND a.p_menu_no != 0 )
+			OR c.tot_menu_auth_yn = 'Y'
+		GROUP BY b.auth_gr_no
+	</insert>
+	
+	<!-- 메뉴 순서, 한칸씩 앞으로 -->
+	<update id="shiftForwardMenuOrder" parameterType="menuBean">
+		UPDATE t_menu_info
+		SET disp_ord = disp_ord - 1
+		WHERE disp_ord &gt; #{before_disp_ord}
+			AND p_menu_no = #{p_menu_no}		
+	</update>
+	
+	<update id="updateMenu">
+		UPDATE t_menu_info
+		SET
+			menu_nm 			= #{menu_nm},
+			menu_addr 			= #{menu_addr},
+			disp_ord 			= #{disp_ord},
+			menu_desc 			= #{menu_desc},
+<!-- 			act_type 			= #{act_type}, -->
+			log_record_yn 		= #{log_record_yn},
+			show_yn 			= #{show_yn},
+			use_yn 				= #{use_yn},
+			mdfy_by	 			= #{login_user_id},
+			mdfy_dt 			= now()
+		WHERE menu_no = #{menu_no}
+	</update>
+	
+	<insert id="insertAuthGrMenuMapp" parameterType="userAuthGrBean">
+		INSERT INTO t_auth_gr_menu_mapp (
+			auth_gr_no, menu_no
+		) VALUES (
+			CAST(#{auth_gr_no} AS INT), CAST(#{menu_no} AS INT)
+		)
+	</insert>
+	
+	<delete id="deleteAuthGrMenuMappForUpdate" parameterType="int">
+        DELETE FROM t_auth_gr_menu_mapp 
+        WHERE auth_gr_no = CAST(#{auth_gr_no} AS INT)
+	</delete>
+	
+	<delete id="deleteAuthGroupMappingMenu">
+		DELETE FROM t_auth_gr_menu_mapp
+		WHERE menu_no = #{menu_no}
+	</delete>
+	
+	<delete id="deleteMenu">
+		DELETE FROM t_menu_info
+		WHERE menu_no = #{menu_no}
+	</delete>
+	
+	<insert id="insertMenuAccessLog" parameterType="hmap">
+		INSERT INTO t_menu_access_log ( 
+			menu_no
+			, log_dt
+			, user_id
+			, access_ip
+			, access_scces_yn
+		) VALUES (
+			CAST(#{menu_no} AS INT)
+			, now()
+			, #{user_id}
+			, #{access_ip}
+			, #{access_scces_yn}
+		)
+	</insert>
+	
+</mapper>

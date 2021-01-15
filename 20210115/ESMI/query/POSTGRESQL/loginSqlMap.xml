@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:57 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="loginSqlMap">
+
+	<!-- ID/PW를 이용해 사용자 정보 조회 [author(yyyy.mm.dd)] -->
+	<select id="getUserInfoByIDPW" parameterType="userInfoBean" resultType="userInfoBean">
+		SELECT
+				t1.user_id
+				, t1.user_nm
+				, t1.user_type
+				, t1.user_email
+				, t1.mobile_tel_no
+				, t1.user_desc
+				, t1.gen_by
+				, t1.gen_dt
+				, t1.mdfy_by
+				, t1.mdfy_dt
+				, t1.use_yn
+				, t1.user_pwd
+				, t3.auth_gr_nm
+				, t3.auth_gr_desc
+				, CASE 
+					WHEN DATE_PART('day', NOW() - t1.pwd_mdfy_dt) &gt; 90 
+					THEN 'Y'
+					ELSE 'N' 
+				END AS pwd_mdfy_dt
+		FROM t_user_info t1
+			LEFT OUTER JOIN t_user_auth_gr t2
+				ON t1.user_id = t2.user_id
+			LEFT OUTER JOIN t_auth_gr t3
+				ON t2.auth_gr_no = t3.auth_gr_no
+		WHERE t1.user_id = #{user_id}
+			AND t1.user_pwd = #{user_pwd}
+			AND t1.use_yn = 'Y'
+	</select>
+	
+	<select id="getUserInfoID" parameterType="userInfoBean" resultType="userInfoBean">
+		select
+			t1.user_id
+		from t_user_info t1
+		where t1.user_id = #{user_id}
+	</select>	
+	
+	<update id="updateLastLogin" parameterType="userInfoBean">
+		update t_user_info
+		set pwd_mdfy_dt = now()
+		where user_id = #{user_id}
+	</update>
+	
+	<update id="updateLoginUserLock" parameterType="userInfoBean">
+		update t_user_info
+		set use_yn = 'Y'
+		where user_id = #{user_id}
+	</update>
+	
+	<update id="updatePwd" parameterType="userInfoBean">
+		update t_user_info
+ 		set user_pwd = #{new_password}
+			,pwd_mdfy_dt = now()
+		where user_id = #{user_id}
+	</update>
+	
+	<update id="updatePwdChgPopAction" parameterType="userInfoBean">
+		update t_user_info
+ 		set user_pwd = #{user_pwd}
+			,pwd_mdfy_dt = now()
+		where user_id = #{user_id}
+	</update>
+	
+</mapper>

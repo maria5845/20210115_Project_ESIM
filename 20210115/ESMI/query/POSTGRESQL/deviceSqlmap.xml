@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:56 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="deviceSqlMap">
+
+	<!-- Device List  -->
+	<select id="getDeviceList" parameterType="deviceBean" resultType="deviceBean" >
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.dvc_seq ASC) AS rn
+			, a.*
+		FROM (		
+			SELECT
+				t1.dvc_seq
+				, t1.dvc_id
+				, t1.dvc_nm
+				, t1.dvc_type
+				, (SELECT cd_val FROM t_cm_cd WHERE cat_cd = 'DVC_TYPE' AND cd = t1.dvc_type) as dvc_type_nm
+				, t1.use_yn
+				, CASE WHEN t1.dvc_seq &lt; 100000 THEN 'N' ELSE 'Y' END as edit_yn
+<!-- 				, 'Y' as edit_yn -->
+			FROM t_dvc_info t1
+			<where>
+				<if test='dvc_id != null and !"".equals(dvc_id)'>
+				AND t1.dvc_id LIKE CONCAT('%', #{dvc_id}, '%')
+				</if>
+				<if test='dvc_nm != null and !"".equals(dvc_nm)'>
+				AND t1.dvc_nm LIKE CONCAT('%', #{dvc_nm}, '%')
+				</if>
+				<if test='use_yn != null and !"".equals(use_yn)'>
+				AND t1.use_yn = #{use_yn}
+				</if>
+			</where>
+		) a
+	</select>
+	<!-- END Device List -->
+	
+	<!-- Device  -->
+	<select id="getDevice" parameterType="deviceBean" resultType="deviceBean" >
+		SELECT
+			t1.dvc_seq
+			, t1.dvc_id
+			, t1.dvc_nm
+			, t1.dvc_type
+			, (SELECT cd_val FROM t_cm_cd WHERE cat_cd = 'DVC_TYPE' AND cd = t1.dvc_type) as dvc_type_nm
+			, t1.use_yn
+		FROM t_dvc_info t1
+		WHERE t1.dvc_seq = #{dvc_seq}
+	</select>
+	<!-- END Device -->
+
+	<!-- Insert Device  -->
+	<insert id="insertDevice" parameterType="deviceBean">
+		INSERT INTO t_dvc_info (
+			dvc_seq
+			, dvc_id, dvc_nm, dvc_type, use_yn
+			, dvc_ip, mac_addr, dvc_desc, gen_by, gen_dt
+		) VALUES (
+			(
+				select coalesce(a2.dvc_seq, a1.dvc_seq) 
+			  	from (select 100001 as dvc_seq )a1 
+			  	left outer join ( select coalesce(max(dvc_seq),0)+1 as dvc_seq from t_dvc_info where dvc_seq &gt;= 100000 ) a2 
+			  	on 1=1
+			 )
+			, #{dvc_id}, #{dvc_nm}, #{dvc_type}, #{use_yn}
+			, #{dvc_ip}, #{mac_addr}, #{dvc_desc}, #{login_user_id}, now()
+		)
+	</insert>
+	<!-- END Insert Device -->
+	
+	<!-- Update Device  -->
+	<update id="updateDevice" parameterType="deviceBean" >
+		UPDATE t_dvc_info
+		SET 
+			dvc_id		= #{dvc_id}
+		     , dvc_nm	= #{dvc_nm}
+			 , dvc_type	= #{dvc_type}
+			 , use_yn	= #{use_yn}
+			 , dvc_ip	= #{dvc_ip}
+			 , mac_addr	= #{mac_addr}
+			 , dvc_desc	= #{dvc_desc}
+			 , mdfy_by	= #{login_user_id}
+			 , mdfy_dt	= now()
+		 WHERE dvc_seq = #{dvc_seq}
+	</update>
+	<!-- END Update Device -->
+	
+	<!-- Delete Device  -->
+	<update id="deleteDevice" parameterType="deviceBean" >
+		DELETE FROM t_dvc_info
+		WHERE dvc_seq = #{dvc_seq}
+	</update>
+	<!-- END Delete Device -->
+	
+	<!-- Device - Cont Mapping Delete -->
+	<delete id="deleteDeviceMappInfo" parameterType="deviceBean">
+		DELETE FROM t_cont_mapp
+		 WHERE dvc_seq = #{dvc_seq}
+	</delete>
+	
+	<select id="getDeviceAttrList" parameterType="deviceBean" resultType="deviceBean" >
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.dvc_attr_seq ASC) AS rn
+			, a.*
+		FROM (		
+			SELECT
+				t1.dvc_attr_seq
+				, t1.dvc_seq
+				, t1.dvc_attr_cd
+				, (SELECT cd_val FROM t_cm_cd WHERE cat_cd = 'DVC_ATTR_CD' AND cd = t1.dvc_attr_cd) as dvc_attr_cd_nm
+				, t1.num_data
+				, t1.str_data
+			FROM t_dvc_attr t1
+			WHERE t1.dvc_seq = #{dvc_seq}
+		) a
+	</select>
+	
+	<insert id="insertDeviceAttr" parameterType="deviceBean" >
+		INSERT INTO t_dvc_attr (
+			dvc_seq, dvc_attr_cd, num_data, str_data
+		) VALUES (
+			CAST(#{dvc_seq} AS INT), #{dvc_attr_cd}, CAST(#{num_data} AS INT), #{str_data}
+		)
+	</insert>
+	
+	<delete id="deleteDeviceAttr" parameterType="deviceBean" >
+		DELETE FROM t_dvc_attr
+		WHERE dvc_seq = #{dvc_seq}
+	</delete>
+	
+</mapper>

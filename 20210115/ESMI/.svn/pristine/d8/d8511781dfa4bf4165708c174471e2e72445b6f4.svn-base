@@ -1,0 +1,638 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:56 KST 2017 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="loadfactorSqlMap">
+    
+    <select id="getDvcList" parameterType="custombean" resultType="hmap">
+        select dvc_id, dvc_nm, tree_desc, dvc_id_list
+          from (select dvc_id, dvc_nm, dvc_seq 
+                  from t_dvc_info) dvc
+               inner join
+               (select tree_nm, tree_seq, tree_desc
+                       ,(SELECT array_to_string(array_agg(tree_nm), ',') FROM t_tree_info WHERE p_tree_seq = t1.tree_seq ) dvc_id_list
+                  from t_tree_info t1
+                 where p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+                   and (SELECT count(1) FROM t_tree_info WHERE p_tree_seq = t1.tree_seq) > 0) dvc_tree
+               on dvc.dvc_id = dvc_tree.tree_nm
+        order by tree_desc        
+    </select>
+    
+    <!-- Unit 별 Load Factor -->
+    <select id="getLoadFactorList" parameterType="hmap" resultType="hmap">
+        WITH dvc_list AS (SELECT tree_nm AS dvc_id
+                          FROM t_tree_info 
+                          WHERE p_tree_seq = (SELECT tree_seq 
+                                              FROM t_tree_info 
+                                              WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+                                              AND tree_nm = #{dvc_id}))
+        SELECT  coalesce(NULLIF(var_nm, ''), axis_t.var_id) || '|' || axis_t.var_id  "xunit",
+                substring(axis_t.t_md, 1,2)||'/'||substring(axis_t.t_md, 3,4) "data_tm",
+                COALESCE(data_val, 0) "data_val",
+                intnsf_val  "load_val"
+        FROM (SELECT dvc_id, var_id , #{endDate} AS "t_md"
+              FROM t_stats_data
+              WHERE t_md = #{endDate}
+              GROUP BY dvc_id, var_id
+              HAVING dvc_id in (SELECT dvc_id FROM dvc_list)
+              ) axis_t
+              INNER JOIN (
+                SELECT DISTINCT var_id, var_nm FROM t_var_info tvi WHERE var_gr = #{loadfactor_type}
+              ) var ON axis_t.var_id = var.var_id
+              LEFT OUTER JOIN
+              (SELECT lf.dvc_id, lf.var_id, lf.data_val, lif.intnsf_val
+               FROM (SELECT dvc_id, var_id,
+                            ROUND(max(data_max)::NUMERIC, 2) as data_val
+                     FROM t_stats_data tsd 
+                     WHERE t_md = #{endDate}
+                     AND dvc_id in (SELECT dvc_id FROM dvc_list)
+                     GROUP BY dvc_id, var_id
+                     ) lf
+                     LEFT OUTER join
+                     (SELECT t1.dvc_id, t1.var_id,
+                            ROUND((COALESCE(t1.data_val,0)-COALESCE(t2.data_val,0)), 2) as intnsf_val
+                     FROM (SELECT dvc_id, var_id,
+                                  t_md,
+                                  max(data_max)::NUMERIC as data_val
+                            FROM t_stats_data   
+                            WHERE t_md = #{endDate}
+                            AND dvc_id in (SELECT dvc_id FROM dvc_list)
+                            GROUP BY dvc_id, var_id, t_md
+                            ) t1
+                            LEFT OUTER JOIN
+                            (SELECT dvc_id, var_id,
+                                    max(data_max)::NUMERIC as data_val
+                               FROM t_stats_data tsd 
+                               WHERE t_md = #{startDate}
+                               AND dvc_id in (SELECT dvc_id FROM dvc_list)
+                             GROUP BY dvc_id, var_id, t_md
+                             ) t2
+                            ON t1.dvc_id = t2.dvc_id AND t1.var_id = t2.var_id
+                       )lif
+                       ON lf.dvc_id = lif.dvc_id AND lf.var_id = lif.var_id 
+            ) data_t
+            ON axis_t.dvc_id = data_t.dvc_id AND axis_t.var_id = data_t.var_id 
+            ORDER BY axis_t.var_id  
+    </select>
+    
+    <!-- 특정 Unit 상세  메인 차트 쿼리 -->
+    <select id="getLoadFactorDetail" parameterType="hmap" resultType="hmap">
+        WITH dvc_list AS (SELECT tree_nm AS dvc_id
+                              FROM t_tree_info 
+                              WHERE p_tree_seq = (SELECT tree_seq 
+                                                  FROM t_tree_info 
+                                                  WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+                                                  AND tree_nm = #{dvc_id}))
+        SELECT  coalesce(NULLIF(var_nm, ''), axis_t.var_id) || '|' || axis_t.var_id  "xunit",
+                substring(axis_t.t_md, 1,2)||'/'||substring(axis_t.t_md, 3,4) "data_tm",
+                COALESCE(data_val, 0) "data_val",
+                intnsf_val  "load_val",
+                dt
+        FROM (SELECT t2.dvc_id, t2.var_id, t1.t_md, t1.dt
+                FROM (SELECT to_char(date_series, 'mmdd') AS t_md, date_series dt
+                      FROM generate_series(to_date(#{edate}, 'yyyymmdd'), 
+                                          (to_date(#{edate}, 'yyyymmdd') - INTERVAL '4 day')::DATE,
+                                          '-1 day'::interval)  date_series) t1
+                      CROSS JOIN
+                      (SELECT dvc_id, var_id FROM t_stats_data
+                        WHERE t_md = #{endDate}
+                       GROUP BY dvc_id, var_id
+                       HAVING dvc_id in (SELECT dvc_id FROM dvc_list)
+                       ) t2
+              ) axis_t
+              INNER JOIN (
+                SELECT DISTINCT var_id, var_nm FROM t_var_info tvi WHERE var_gr = #{loadfactor_type}
+              ) var ON axis_t.var_id = var.var_id
+              LEFT JOIN
+              (
+               SELECT lf.dvc_id, lf.var_id, lf.t_md, lf.data_val, lif.intnsf_val
+               FROM (SELECT dvc_id, var_id,
+                            ROUND(max(data_max)::NUMERIC, 2) as data_val,
+                            t_md
+                     FROM t_stats_data tsd 
+                     WHERE t_md in 
+                     <foreach collection="periodStr" item="item"  open="(" close=")" separator=",">
+                        #{item}
+                     </foreach>
+                     AND dvc_id in (SELECT dvc_id FROM dvc_list)
+                     GROUP BY dvc_id, var_id, t_md
+                     ) lf --load factor
+                    LEFT OUTER JOIN
+                    (SELECT t1.dvc_id, t1.var_id, 
+                            t1.t_md t_md,
+                            ROUND((COALESCE(t1.data_val,0)-COALESCE(t2.data_val,0)), 2) as intnsf_val
+                     FROM (SELECT dvc_id, var_id,
+                                  t_md,
+                                  max(data_max)::NUMERIC as data_val
+                            FROM t_stats_data   
+                            WHERE t_md = #{endDate}
+                            AND dvc_id in (SELECT dvc_id FROM dvc_list)
+                            GROUP BY dvc_id, var_id, t_md
+                            ) t1
+                            LEFT OUTER JOIN
+                            (SELECT dvc_id, var_id,
+                                    max(data_max)::NUMERIC as data_val
+                               FROM t_stats_data tsd 
+                               WHERE t_md = #{startDate}
+                               AND dvc_id in (SELECT dvc_id FROM dvc_list)
+                             GROUP BY dvc_id, var_id, t_md
+                             ) t2
+                            ON t1.dvc_id = t2.dvc_id AND t1.var_id = t2.var_id
+                  ) lif -- load intensification factor
+                  ON lf.dvc_id = lif.dvc_id AND lf.var_id = lif.var_id AND lf.t_md = lif.t_md
+            ) data_t
+            ON axis_t.dvc_id = data_t.dvc_id AND axis_t.var_id = data_t.var_id AND axis_t.t_md = data_t.t_md
+            ORDER BY axis_t.var_id, axis_t.dt;
+    </select>
+    
+    <select id="getloadSubLeft" parameterType="hmap" resultType="hmap">
+        SELECT var_id
+        <if test='sdate != null and !"".equals(sdate) and "".equals(edate)'>
+                 , to_char(to_timestamp(data_tm, 'YYYYMMDDHH24MISS000')::timestamp, 'HH24:MI') as data_tm
+                 , max(data_max) as data_val 
+              FROM t_stats_data
+             WHERE 1=1
+             AND t_md = #{sdate}
+        </if>
+        <if test='sdate != null and edate != null and !"".equals(edate)'>
+                 , to_char(to_timestamp(data_tm, 'YYYYMMDDHH24MISS000')::timestamp, 'MM/DD HH24:MI') as data_tm
+                 , max(data_max) as data_val 
+              FROM t_stats_data
+             WHERE 1=1
+             AND t_md BETWEEN SUBSTRING(#{sdate}, 5, 4) AND SUBSTRING(#{edate}, 5, 4)
+             AND data_tm BETWEEN #{sdate} AND #{edate}
+        </if>
+            AND dvc_id in 
+                (SELECT tree_nm AS dvc_id
+                    FROM t_tree_info 
+                 WHERE p_tree_seq = (SELECT tree_seq 
+                                    FROM t_tree_info 
+                                    WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+                                    AND tree_nm = #{dvc_id}))
+            AND var_id = #{var_id}
+        GROUP BY var_id, data_tm
+        ORDER BY data_tm ASC
+    </select>
+    
+    <!-- 가장 최근 데이터  조회  -->
+    <select id="getloadSubRight" parameterType="hmap" resultType="hmap">
+        select var_id
+             , to_char((last_cllct_dt), 'YYYY-MM-DD HH24:MI:ss') as last_cllct_dt
+             , to_char((last_cllct_dt), 'HH24:MI:ss') as data_tm
+             , coalesce(data_val, 0) as data_val
+        from t_cllct_recent_data
+        where 1=1
+            AND dvc_id in 
+                (SELECT tree_nm AS dvc_id
+                     FROM t_tree_info 
+                     WHERE p_tree_seq = (SELECT tree_seq 
+                                        FROM t_tree_info 
+                                        WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+                                        AND tree_nm = #{dvc_id}))
+            AND var_id = #{var_id}
+            <if test='last_cllct_dt != null and !"".equals(last_cllct_dt)'>
+                AND last_cllct_dt &gt; ((#{last_cllct_dt})::timestamp + interval '1 second')
+            </if>
+    </select>
+    
+    <!-- 알람 리스트 조회 -->
+    <select id="getLoadFactorAlarmList" parameterType="hmap" resultType="hmap">
+        WITH dvc_list AS (SELECT tree_nm AS dvc_id
+                  FROM t_tree_info 
+                  WHERE p_tree_seq = (SELECT tree_seq 
+                                      FROM t_tree_info 
+                                      WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+                                      AND tree_nm =  #{dvc_id}))
+        SELECT ROW_NUMBER() OVER() AS rn, * FROM (
+        SELECT stat.dvc_id, 
+               stat.var_id,
+               stat.data_max m1,
+               stat_day.data_day_max m2,
+               ROUND(stat.data_max::numeric, 2) || '%' AS data_max, 
+               COALESCE(ROUND(stat_day.data_day_max::NUMERIC, 2), 0) || '%' AS data_day_max,
+               to_char(to_timestamp(stat.data_tm, 'yyyymmddhh24miss'), 'mm/dd hh24:mi:ss') data_tmf,
+               stat.data_tm,
+               var_nm
+        FROM  (SELECT t1.dvc_id, t1.var_id, t1.data_max, max(t1.data_tm) data_tm
+                FROM   (SELECT dvc_id, var_id, data_max, data_tm 
+                        FROM   t_stats_data
+                        WHERE  t_md = #{edate_mmdd}
+                        AND    dvc_id in (SELECT dvc_id from dvc_list)
+                        GROUP BY dvc_id, var_id, data_max, data_tm
+                        )t1
+                        INNER JOIN
+                        (SELECT dvc_id, var_id, max(data_max) max_val
+                        FROM    t_stats_data
+                        WHERE   t_md = #{edate_mmdd}
+                        AND     dvc_id in (SELECT dvc_id from dvc_list)                                   
+                        GROUP BY dvc_id, var_id
+                        )t2
+                        ON  t1.dvc_id=t2.dvc_id
+                        AND t1.var_id=t2.var_id
+                        AND t1.data_max=t2.max_val  
+                GROUP BY t1.dvc_id, t1.var_id, t1.data_max
+                ) stat
+                LEFT JOIN
+                (SELECT dvc_id, var_id, data_max data_day_max
+                 FROM   t_stats_data_day
+                 WHERE  data_tm = to_char(to_date(#{edate}, 'yyyymmdd') - INTERVAL '1 day', 'yyyymmdd')
+                 AND    dvc_id in (SELECT dvc_id from dvc_list)
+                 ) stat_day
+                ON stat.dvc_id=stat_day.dvc_id 
+                AND stat.var_id = stat_day.var_id
+                INNER JOIN (
+                    SELECT DISTINCT var_id, var_nm FROM t_var_info tvi WHERE var_gr = #{loadfactor_type}
+                )var ON stat.var_id = var.var_id
+                ORDER BY data_tm desc
+                )t
+        WHERE m1 > coalesce( m2, 0)
+    </select>
+    
+    <select id="getLoadFactorDataForExcel" parameterType="map" resultType="map">
+        WITH dvc_list AS (SELECT tree_nm AS dvc_id
+                          FROM t_tree_info 
+                          WHERE p_tree_seq in (SELECT tree_seq 
+                                              FROM t_tree_info 
+                                              WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+                                              <if test='dvc_id != null'>
+                                              AND tree_nm = #{dvc_id}
+                                              </if>
+                                              ))
+        SELECT ROW_NUMBER() over() rownum, * FROM 
+        (SELECT ROW_NUMBER() over() rownum,
+           dvc_id,
+           xunit,
+           <foreach collection="periodStr" item="item"  open="" close="" index="index" separator=",">
+               sum(CASE WHEN t.t_md = #{item} THEN t.data_val ELSE 0 END)||'%' AS "d${index}"
+           </foreach>
+        FROM   (SELECT  axis_t.var_id "xunit",
+                        axis_t.dvc_id "dvc_id",
+                        axis_t.t_md,
+                        substring(axis_t.t_md, 1,2)||'/'||substring(axis_t.t_md, 3,4) "data_tm",
+                        COALESCE(data_val, 0) "data_val",
+                        dt
+                FROM (SELECT t2.dvc_id, t2.var_id, t1.t_md, t1.dt
+                        FROM (SELECT to_char(date_series, 'mmdd') AS t_md, date_series dt
+                              FROM generate_series(to_date(#{edate}, 'yyyymmdd'), 
+                                                  (to_date(#{edate}, 'yyyymmdd') - INTERVAL '14 day')::DATE,
+                                                  '-1 day'::interval)  date_series
+                              ) t1
+                              CROSS JOIN
+                              (SELECT dvc_id, var_id FROM t_stats_data
+                                WHERE t_md in 
+                                <foreach collection="periodStr" item="item"  open="(" close=")" separator=",">
+                                  #{item}
+                               </foreach> 
+                               GROUP BY dvc_id, var_id
+                               HAVING dvc_id in (SELECT dvc_id FROM dvc_list)
+                              ) t2
+                      ) axis_t
+                      INNER JOIN (
+                        SELECT DISTINCT var_id, var_nm FROM t_var_info tvi WHERE var_gr = #{loadfactor_type}
+                      ) var ON axis_t.var_id = var.var_id
+                      LEFT JOIN
+                      (SELECT dvc_id, var_id,
+                              ROUND(max(data_max)::NUMERIC, 2) as data_val,
+                              t_md
+                       FROM t_stats_data tsd 
+                       WHERE t_md IN 
+                       <foreach collection="periodStr" item="item"  open="(" close=")" separator=",">
+                          #{item}
+                       </foreach>
+                       AND dvc_id in (SELECT dvc_id FROM dvc_list)
+                       GROUP BY dvc_id, var_id, t_md
+                       ) lf 
+                       ON axis_t.dvc_id = lf.dvc_id AND axis_t.var_id = lf.var_id AND axis_t.t_md = lf.t_md
+                ) t
+        GROUP BY xunit, dvc_id
+        ORDER BY dvc_id desc, xunit
+        ) tt;
+    </select>
+    
+    <select id="getADAlarmList" parameterType="hmap" resultType="hmap">
+        SELECT seq, dvc_id, var_id, cause_type, cause_val, reset_date_cnt as cnt, t_md, 
+               to_char(gen_dt, 'yyyy-mm-dd') data_tm, mdfy_dt, reset_flag, check_flag,
+               (SELECT var_nm FROM t_var_info WHERE var_id = t_abnormal_axis_list.var_id) var_nm
+        FROM t_abnormal_axis_list
+        
+         <choose>	
+		 <when test='sdate != null and !"".equals(sdate) and (edate==null or "".equals(edate))'>
+            where gen_dt >= #{sdate}::timestamp 
+		 </when>
+		 <when test='sdate != null and !"".equals(sdate)'>
+		 	where gen_dt between #{sdate}::timestamp and #{edate}::timestamp
+		 </when>
+		 </choose>
+        order by data_tm desc ,  mdfy_dt desc, var_id, check_flag desc
+    </select>
+    
+    <delete id="deleteADList" parameterType="hmap">
+        delete FROM t_abnormal_axis_list
+        <if test='var_id != null and !"".equals(var_id)'>
+            WHERE var_id = #{var_id}
+        </if>
+    </delete>
+    
+    <update id="updateADResetDate" parameterType="hmap">
+        INSERT INTO t_abnormal_axis_reset_date 
+            (dvc_id, var_id, reset_date, gen_dt)
+        (SELECT dvc_id, var.var_id, 
+        <if test="type == null">to_char(now()::date + '1 day'::interval, 'yyyymmdd')</if>
+        <if test="type != null">to_char(now()::date, 'yyyymmdd')</if>
+        , now()
+         FROM t_stats_data_day 
+        INNER JOIN 
+            (SELECT var_id FROM t_var_info WHERE var_gr LIKE 'LOAD_FACTOR') var
+            ON t_stats_data_day.var_id=var.var_id
+        <if test='var_id != null and !"".equals(var_id)'>
+        WHERE var.var_id = #{var_id}
+        </if>
+        GROUP BY dvc_id, var.var_id
+        )
+        ON CONFLICT(dvc_id, var_id)
+        DO UPDATE 
+           SET reset_date  = 
+           <if test="type == null">to_char(now()::date + '1 day'::interval, 'yyyymmdd')</if>
+           <if test="type != null">to_char(now()::date, 'yyyymmdd')</if>
+    </update>
+     
+    <select id="getMaxStatSeq" parameterType="hmap" resultType="hmap">
+        SELECT max(stats_data_seq)::varchar max FROM t_stats_data WHERE t_md = #{t_md}
+    </select>
+    
+    <insert id="insertAbnormalAxisList" parameterType="hmap" >
+        WITH 
+        reset_dt AS (
+        	select dvc_id, var_id, reset_date, 
+        		case when std_data = 0 then 
+	        		(select data_max from t_stats_data_day 
+	        		where dvc_id = sub_reset.dvc_id 
+	        			and var_id = sub_reset.var_id 
+	        			and data_tm in (select data_tm from t_schedule_run_hist where data_tm > sub_reset.reset_date and run_type = 'RUN' and dvc_run_yn = 'Y' order by data_tm) 
+	        			and data_max >0 
+	        		order by data_tm
+	        		limit 1)
+        		else std_data
+        		end as std_data
+        	from (SELECT dvc_id
+	            	, var_id
+	            	, reset_date
+	            	,case when reset_date in (select data_tm from t_schedule_run_hist where run_type = 'RUN' and dvc_run_yn = 'Y') 
+	            		then (select data_max from t_stats_data_day 
+	            				where dvc_id = reset_date.dvc_id 
+	            				and var_id = reset_date.var_id
+	            				and data_tm = reset_date.reset_date)
+	            		else 0
+	            	end  as std_data
+	            FROM t_abnormal_axis_reset_date as reset_date
+            ) as sub_reset
+        )
+        ,idx_base AS (
+            SELECT dvc_id, 
+                   var_id,
+                   0,
+                   (SELECT cd_val from t_cm_cd WHERE cat_cd = 'LOAD_FACTOR_IDX_SUM' AND cd = 'CYLINDER')::NUMERIC idx_val,
+                   'Cylinder' AS idx_name,
+                   '' ascond_gt,
+                   '' ascond_lte       
+            FROM  t_stats_data_day stat
+            WHERE upper(dvc_id) LIKE '%CYLINDER%'
+            GROUP BY var_id, dvc_id
+            UNION ALL
+            SELECT reset_dt.dvc_id,
+                   reset_dt.var_id,
+                   reset_dt.std_data,
+                   idx_base_code.idx_val::NUMERIC idx_val,
+                   idx_base_code.idx_name,
+                   idx_base_code.cond_gt,
+                   idx_base_code.cond_lte      
+            FROM  reset_dt as reset_dt
+                  INNER JOIN
+                  (SELECT cd idx_name, cd_val idx_val, cd_attr_1 cond_gt, cd_attr_2 cond_lte
+                   from t_cm_cd  
+                   WHERE cat_cd = 'LOAD_FACTOR_IDX_SUM' 
+                   AND cd != 'CYLINDER' 
+                   ORDER BY disp_ord) idx_base_code 
+                   ON reset_dt.std_data > idx_base_code.cond_gt::numeric
+                   AND reset_dt.std_data &lt;= idx_base_code.cond_lte::NUMERIC
+        )
+        -- idx_base 중복코드 예외처리 필요
+        ,stat_day_idx_list AS(
+            SELECT (data_max-prev_max)/(std_data) AS index_day
+           , t.*
+            FROM (SELECT COALESCE(LAG(stat_day.data_max) OVER(PARTITION BY stat_day.dvc_id, stat_day.var_id 
+                                                              ORDER BY stat_day.dvc_id, stat_day.var_id, stat_day.data_tm)
+                                  , stat_day.data_max) prev_max,
+                         stat_day.data_max today_max,
+                         reset_dt.var_id reset_var,
+                         reset_dt.reset_date,
+                         stat_day.*,
+                         reset_dt.std_data
+                  FROM t_stats_data_day stat_day
+                  INNER JOIN 
+                       (SELECT var_id FROM t_var_info WHERE var_gr LIKE 'LOAD_FACTOR') var_list
+                        ON stat_day.var_id=var_list.var_id
+                  LEFT JOIN reset_dt
+                       ON stat_day.dvc_id = reset_dt.dvc_id
+                       AND stat_day.var_id = reset_dt.var_id
+                       join (
+	                       select data_tm from t_schedule_run_hist T1
+	                       where T1.run_type = 'RUN' and dvc_run_yn = 'Y'
+	                       group by data_tm
+	                       UNION SELECT to_char(now()::date-1, 'yyyymmdd')
+                      	) t2
+                	 	on t2.data_tm = stat_day.data_tm
+                  WHERE stat_day.data_tm >= COALESCE(reset_dt.reset_date, '0') and stat_day.data_max !=0 -- max 값이 0이 아닌경우에만
+                 ) t
+        )
+        INSERT INTO t_abnormal_axis_list (dvc_id, var_id, cause_type, cause_val, cnt, t_md, gen_dt, mdfy_dt, check_flag)
+        select dvc_id, var_id, 'Index_sum', round(max(index_val_sum)::numeric, 4)||'(>'||idx_val||')' as idx_data, count(var_id) cnt, to_char(now()::timestamp - '1 day'::interval, 'mmdd') as t_md, now()::timestamp - '1 day'::interval, now(), 1 
+        from (
+        SELECT index_val_sum,
+                recent_data_tm,
+                (SELECT data_max FROM t_stats_data_day tsdd WHERE data_tm=recent_data_tm AND dvc_id=t.dvc_id and var_id=t.var_id) prev_data,
+                t.dvc_id, t.var_id
+                , COALESCE(idx_base.idx_val, 1.5) as idx_val
+         FROM   (SELECT sum(index_day) index_val_sum,
+                        max(data_tm) recent_data_tm, 
+                        dvc_id, var_id
+                 FROM stat_day_idx_list
+                 GROUP BY dvc_id, var_id) t
+         LEFT JOIN idx_base
+             ON t.dvc_id=idx_base.dvc_id
+             AND t.var_id=idx_base.var_id
+        ) TT1
+         WHERE index_val_sum > idx_val 
+         	and (select coalesce(data_max,0) from t_stats_data_day where data_tm = to_char(now() - interval '1 day','yyyymmdd') and var_id = TT1.var_id and dvc_id = TT1.dvc_id) != 0 -- 전날 데이터 0 일경우 이상감지 스킵
+         GROUP BY dvc_id, var_id, idx_val, t_md
+         ON CONFLICT(dvc_id, var_id, cause_type, t_md)
+         DO UPDATE 
+           SET cause_val = excluded.cause_val,
+               cnt = t_abnormal_axis_list.cnt+excluded.cnt,
+               mdfy_dt = now(),
+               check_flag =1
+    </insert>
+    
+    <insert id="insertAbnormalAxisList_con" parameterType="hmap" >
+        WITH 
+        stat_day_idx_list AS(
+            SELECT  t.*
+            FROM (SELECT COALESCE(LAG(stat_day.data_max) OVER(PARTITION BY stat_day.dvc_id, stat_day.var_id 
+                                                              ORDER BY stat_day.dvc_id, stat_day.var_id, stat_day.data_tm)
+                                  , stat_day.data_max) prev_max,
+                         stat_day.data_max today_max,
+                         reset_dt.var_id reset_var,
+                         reset_dt.reset_date,
+                         stat_day.*
+                  FROM t_stats_data_day stat_day
+                  INNER JOIN 
+                      (SELECT var_id FROM t_var_info WHERE var_gr LIKE 'LOAD_FACTOR') var_list
+                      ON stat_day.var_id=var_list.var_id
+                 -- 산출된 날짜 join
+                 join (
+                       select data_tm as run_date from t_schedule_run_hist T1
+                       where T1.run_type = 'RUN' and dvc_run_yn = 'Y'
+                       group by data_tm
+                       UNION SELECT to_char(now()::date-1, 'yyyymmdd')
+                      ) t2
+                 on t2.run_date = stat_day.data_tm
+                 left join
+                 		(SELECT dvc_id
+			            	, var_id
+			            	, reset_date
+			            	, (select data_max from t_stats_data_day where dvc_id = reset_date.dvc_id and var_id = reset_date.var_id and data_tm = reset_date.reset_date) as std_data
+			            FROM t_abnormal_axis_reset_date as reset_date) reset_dt
+                       ON stat_day.dvc_id = reset_dt.dvc_id
+                       AND stat_day.var_id = reset_dt.var_id
+                  WHERE stat_day.data_tm >= COALESCE(reset_dt.reset_date, '0') and stat_day.data_max !=0
+                 ) t
+        )
+        , idx_conn_result as(
+        SELECT *
+        FROM  (SELECT prev_data, 
+                      idx_conn_str,
+                      position('0' IN idx_conn_str)-1 idx_conn,
+                      idx_conn_max_length
+                      , dvc_id, var_id
+               FROM  (SELECT substring(ARRAY_TO_STRING(increaseFlag, ''), 1, 90) idx_conn_str,
+                             (SELECT cd_val::integer FROM t_cm_cd WHERE cat_cd='LOAD_FACTOR_IDX_CON' AND cd='IDX_CON') idx_conn_max_length,
+                             recent_data_tm,
+                             (SELECT data_max FROM t_stats_data_day tsdd WHERE data_tm=recent_data_tm AND dvc_id=t.dvc_id and var_id=t.var_id) prev_data,
+                             dvc_id, var_id
+                     FROM   (SELECT array_agg(CASE WHEN today_max>prev_max THEN 1 ELSE 0 END 
+                                              ORDER BY data_tm DESC, dvc_id, var_id) increaseFlag,
+                                    max(data_tm) recent_data_tm, 
+                                    dvc_id, var_id
+                             FROM stat_day_idx_list
+                             GROUP BY dvc_id, var_id) t
+                     ) stat_day_idx_conn
+              ) rslt
+        WHERE idx_conn >= idx_conn_max_length
+        )
+        INSERT INTO t_abnormal_axis_list (dvc_id, var_id, cause_type, cause_val, cnt, t_md, gen_dt, mdfy_dt, check_flag)
+            SELECT dvc_id, var_id, 'Index_con',  max(idx_conn)+1 idx_data, count(var_id) cnt, to_char(now()::timestamp - '1 day'::interval, 'mmdd') as t_md, now()::timestamp - '1 day'::interval, now(), 1
+            FROM idx_conn_result
+            GROUP BY dvc_id, var_id, idx_conn, t_md
+        ON CONFLICT(dvc_id, var_id, cause_type, t_md)
+        DO UPDATE 
+           SET cause_val = excluded.cause_val,
+               cnt = t_abnormal_axis_list.cnt+excluded.cnt,
+               mdfy_dt = now(),
+               check_flag =1
+    </insert>
+    
+   <update id="updateADListForCheckFlag" parameterType="hmap">
+       update t_abnormal_axis_list
+          set check_flag=0
+        <if test='seq != null and !"".equals(seq)'>
+        where seq = #{seq}::numeric
+        </if>
+   </update>
+   
+    <select id="getStatusRawData" parameterType="hmap" resultType="hmap">
+        select * from t_zs_raw
+        where var_id = #{status_var_id}
+        and data_val = #{status_data_val}::float
+        and t_md = to_char(now()::timestamp - '1 day'::interval, 'MMDD')
+        and data_tm between to_char(now()::timestamp - '1 day'::interval, 'YYYYMMDD')||'000000'
+        and to_char(now()::timestamp - '1 day'::interval, 'YYYYMMDD')||'235959'
+        limit 1
+    </select>
+    
+    <select id="getSpeedHistoryData" parameterType="hmap" resultType="hmap">
+        select 
+        * 
+        from t_var_change_history
+        where last_mdfy_dt between to_timestamp(to_char(now()::date - '1 day'::interval, 'YYYY-MM-DD') || ' 00:00:00', 'YYYY-MM-DD HH24:MI:SS') 
+        and to_timestamp(to_char(now()::date - '1 day'::interval, 'YYYY-MM-DD') || ' 23:59:59', 'YYYY-MM-DD HH24:MI:SS')
+        and var_id = #{speed_var_id}
+        limit 1
+    </select>
+    
+    <update id="updateAbnormalAxisListForResetDateCnt" parameterType="hmap">
+        UPDATE t_abnormal_axis_list T1
+        SET reset_date_cnt=S1.reset_date_cnt
+        FROM (
+            WITH 
+            w_reset_dt AS (
+                SELECT dvc_id, var_id, reset_date, gen_dt 
+                FROM t_abnormal_axis_reset_date
+            )
+            , w_abnormal_axis_list as (
+                select T1.seq, T1.dvc_id, T1.var_id, t1.cause_type 
+                from t_abnormal_axis_list T1
+                join w_reset_dt T2
+                on T1.dvc_id = T2.dvc_id
+                and T1.var_id = T2.var_id
+                and T1.gen_dt >= to_timestamp(T2.reset_date, 'YYYYMMDD')
+            )
+            select var_id, cause_type, count(var_id) as reset_date_cnt from w_abnormal_axis_list
+            group by var_id, cause_type
+            ) AS S1
+        WHERE T1.var_id =S1.var_id
+        AND t1.cause_type =S1.cause_type
+        and T1.t_md = to_char(now()::date - '1 day'::interval, 'mmdd')
+    </update>
+    
+    <select id="getResetDateByVarId" resultType="string" parameterType="hmap">
+        SELECT to_char(reset_date::date, 'YYYY-MM-DD') as reset_date 
+        FROM t_abnormal_axis_reset_date_hist
+        where var_id = #{var_id}
+        order by reset_hist_seq desc
+        limit 1
+    </select>
+    
+    <select id="getResetDateHistList" resultType="hmap" parameterType="hmap">
+        SELECT dvc_id, var_id, to_char(reset_date::date, 'YYYY-MM-DD') as reset_date
+        , to_char(gen_dt, 'YYYY-MM-DD HH24:MI:SS') as gen_dt
+        , to_char(mdfy_dt, 'YYYY-MM-DD HH24:MI:SS') as mdfy_dt 
+        FROM t_abnormal_axis_reset_date_hist
+        where var_id = 'ALL'
+        order by reset_hist_seq desc
+    </select>
+    
+    <update id="updateADResetDateHist" parameterType="hmap">
+        UPDATE t_abnormal_axis_reset_date_hist T1
+        SET mdfy_dt = now()::timestamp
+        FROM (
+            select reset_hist_seq from t_abnormal_axis_reset_date_hist
+            where var_id = 'ALL'
+            order by reset_hist_seq desc
+            limit 1
+            ) AS S1
+        WHERE T1.reset_hist_seq =S1.reset_hist_seq
+    </update>
+    
+    <insert id="insertADResetDateHist" parameterType="hmap">
+        insert into t_abnormal_axis_reset_date_hist
+            (dvc_id, var_id, reset_date, gen_dt)
+        values
+            ('ALL', 'ALL', to_char(now()::timestamp + '1 day'::interval, 'YYYYMMDD'), now());
+    </insert>
+    
+    <insert id="insertScheduleRunHist" parameterType="hmap">
+        insert into t_schedule_run_hist
+            (gen_dt, run_type, fail_reason, dvc_run_yn, data_tm)
+        values
+            (now(), #{run_type}, #{fail_reason}, #{dvc_run_yn}, to_char(now() - interval '1 day' , 'yyyymmdd'));
+    </insert>
+</mapper>

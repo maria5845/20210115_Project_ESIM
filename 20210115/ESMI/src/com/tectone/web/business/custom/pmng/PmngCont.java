@@ -1,0 +1,1411 @@
+package com.tectone.web.business.custom.pmng;
+
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.inject.Inject;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.servlet.ModelAndView;
+
+import com.tectone.util.DateCheck;
+import com.tectone.util.DateUtil;
+import com.tectone.util.JsonUtil;
+import com.tectone.util.RequestUtil;
+import com.tectone.web.business.setting.code.CodeService;
+import com.tectone.web.model.AjaxBean;
+import com.tectone.web.model.CustomBean;
+import com.tectone.web.model.PmngReportBean;
+import com.tectone.web.model.TreeInfoBean;
+import com.tectone.web.object.ObjectCont;
+
+import net.sf.json.JSONArray;
+
+
+@Controller
+@RequestMapping("/pmng/*")
+public class PmngCont extends ObjectCont {
+	
+	@Inject
+	private PmngService service;
+	@Inject
+	private CodeService codeService;
+	/**
+	 * CMI Lami Main
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "cmiLmain.do")
+	public ModelAndView cmiLmain(PmngReportBean bean) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			mv.addObject("viewName", "../../custom/pmng/cmi/lami/main");
+			mv.setViewName("/common/layout/mng_layout_nolnb");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+
+	/**
+	 * 실시간 데이터 조회 Ajax
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("getRecentList.do")
+	public @ResponseBody AjaxBean getRecentList(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid());
+			//TODO: dvc 조건의 ctq 인자 목록과 그리드 데이터 조회 (t_cllec_recent 추정 중)
+			String varStr = service.getVarStr(bean, arrVarId);
+			
+			if(!StringUtils.isEmpty(varStr)) {
+				bean.setVar_id_str(varStr.substring(1, varStr.length()));
+			}
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getRecentList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * CTQ 실시간 데이터 조회 Ajax
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("getCtqRecentList.do")
+	public @ResponseBody AjaxBean getCtqRecentList(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid());
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getCtqRecentList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * CTQ SV 데이터 조회
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("getCTQSvList.do")
+	public @ResponseBody AjaxBean getCTQSvList(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			String varStr = service.getVarStr(bean, arrVarId);
+			
+			if(!StringUtils.isEmpty(varStr)) {
+				bean.setVar_id_str(varStr.substring(1, varStr.length()));
+			}
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getCTQSvList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * CTQ sv 값 변경되었을시에 경고창 발생
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("getCheckCtqAlert.do")
+	public @ResponseBody AjaxBean getCheckCtqAlert(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			String varStr = service.getVarStr(bean, arrVarId);
+			
+			if(!StringUtils.isEmpty(varStr)) {
+				bean.setVar_id_str(varStr.substring(1, varStr.length()));
+			}
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getCheckCtqAlert", bean));
+			
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 에러 추적 grid ajax
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("errTrackCTQAjax.do")
+	public @ResponseBody AjaxBean errTrackAjax(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid());
+			
+			if(!"".equals(bean.getLot_id())) {
+				ajaxBean.setData("list", service.selectList("pmngSqlMap.getCtqRecentList", bean));
+			}else {
+				ajaxBean.setData("list", service.GetVisionData(bean));
+			}
+			
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 실시간 CTQ 색 데이터 조회 Ajax
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("getCTQColorList.do")
+	public @ResponseBody AjaxBean getCTQColorList(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid());
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getCTQColorList", bean));
+			
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 실시간 SV 색 데이터 조회 Ajax
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("getSVColorList.do")
+	public @ResponseBody AjaxBean getSVColorList(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid());
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getSVColorList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	/**
+	 * 실시간 PV 색 데이터 조회 Ajax
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("getPVColorList.do")
+	public @ResponseBody AjaxBean getPVColorList(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid());
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getPVColorList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * LOT 데이터 조회 Ajax
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("getLotList.do")
+	public @ResponseBody AjaxBean getLotList(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getLotList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 에러 추적
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "errTrack.do")
+	public ModelAndView errTrack(PmngReportBean bean) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			
+		    // errTrackJs.jsp =>  etime = stime + 10MINUTE
+			String edate	=	DateCheck.getCurrentDate("yyyy-MM-dd HH:mm:ss");
+			String sdate	=	DateCheck.getDateAdd(edate,"yyyy-MM-dd HH:mm:ss",Calendar.MINUTE,-10);
+			String stime    =   sdate.substring(11);
+			String etime    =   edate.substring(11);
+			
+			mv.addObject("sdate", sdate);
+			mv.addObject("edate", edate);
+			mv.addObject("stime", stime);
+			mv.addObject("etime", etime);			
+			
+			mv.addObject("viewName", "../../custom/pmng/errTrack");
+			mv.setViewName("/common/layout/mng_layout_nolnb");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	/**
+	 * 에러 추적 json 조회 ajax
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("errTrackChartJsnAjax.do")
+	public @ResponseBody AjaxBean errTrackChartJsnAjax(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			ajaxBean.setData("chart_jsn", service.selectList("pmngSqlMap.getCtqJsonById", bean));
+			
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	
+	/**
+	 * 에러 추적 차트  ctq 데이터 ajax
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("getCtqRawList.do")
+	public @ResponseBody AjaxBean getCtqRawList(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getCtqRawList", bean));
+			
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * id에 맵핑된 ctp 목록 가져옴
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("errTrackCtpJsonAjax.do")
+	public @ResponseBody AjaxBean errTrackCtpJsonAjax(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			service.insert("pmngSqlMap.upsertCtqJsonById", bean);
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 에러 트렉 ctq 변수 모달 화면
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "errTrackCtqModal.do")
+	public ModelAndView errTrackCtqModal(
+			PmngReportBean bean
+			, @RequestParam(value="id", required=false) List<String> id
+			, @RequestParam(value="var_arr", required=false) List<String> arrVarId
+		) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			bean.setDvc_id(service.getPmngDvcid());
+			mv.addObject("id", id);
+			String varStr = service.getVarStr(bean, arrVarId);
+			
+			if(!StringUtils.isEmpty(varStr)) {
+				bean.setVar_id_str(varStr.substring(1, varStr.length()));
+			}
+			
+			mv.addObject("chart_jsn", service.selectList("pmngSqlMap.getCtqJsonById", bean));
+			
+			mv.addObject("ctq_list", JSONArray.fromObject(service.selectList("pmngSqlMap.getCtqList", bean)).toString());
+			mv.addObject("viewName", "../../custom/pmng/ctqList");
+			mv.setViewName("/common/layout/mng_modal");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	/**
+	 * 비전 이미지 모달
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "visionImg.do")
+	public ModelAndView visionImg(PmngReportBean bean, HttpServletRequest request) {
+		ModelAndView mv = new ModelAndView();
+		try {
+
+//			ArrayList<Object> imgMap = service.searchNotchVisionImg(bean, request);
+			ArrayList<Object> imgMap = service.searchCMIVisionImg(bean, request);
+			
+			mv.addObject("imgMap", imgMap);
+			mv.addObject("viewName", "../../custom/pmng/visionImg");
+			mv.setViewName("/common/layout/mng_modal");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	/**
+	 * 비전 이미지 모달
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "guideImg.do")
+	public ModelAndView guideImg(PmngReportBean bean, HttpServletRequest request) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			//호기 정보에 따라서 참고 이미지 변경 ( A or C )
+			mv.addObject("unit", service.getCmcdOne("MACHINE", "UNIT", "Y"));
+			mv.addObject("viewName", "../../custom/pmng/guideImg");
+			mv.setViewName("/common/layout/mng_modal");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	/**
+	 * SV history
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "svHistory.do")
+	public ModelAndView svHistory(
+			PmngReportBean bean
+			, @RequestParam(value="var_id", required=false) String varId
+		) {
+		ModelAndView mv = new ModelAndView();
+		try {    
+			
+				// svhistoryJs.jsp =>  etime = stime + 10MINUTE
+				String edate	=	DateCheck.getCurrentDate("yyyy-MM-dd HH:mm:ss");
+				String sdate	=	DateCheck.getDateAdd(edate,"yyyy-MM-dd HH:mm:ss",Calendar.MINUTE,-10);
+				String stime    =   sdate.substring(11);
+				String etime    =   edate.substring(11);
+			
+				mv.addObject("sdate", sdate);
+				mv.addObject("edate", edate);
+				mv.addObject("stime", stime);
+				mv.addObject("etime", etime);
+				mv.addObject("varId", varId);
+			
+				mv.addObject("viewName", "../../custom/pmng/svhistory");			
+				mv.setViewName("/common/layout/mng_layout_nolnb");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	
+	/**
+	 * SV 변경 히스토리 리스트 조회
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("svHistoryAjax.do")
+	public @ResponseBody AjaxBean svhistoryAjax(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getSVChangeHistoryList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	
+	/**
+	 * SV history detail
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "svhistorydetail.do")
+	public ModelAndView svhistorydetail(
+			PmngReportBean bean
+		) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			
+			mv.addObject("bean", service.selectOne("pmngSqlMap.getSVChangeHistoryDetailList", bean));
+			mv.addObject("viewName", "../../custom/pmng/svhistoryDetail");
+			mv.setViewName("/common/layout/mng_modal");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	/**
+	 * SV 변경 히스토리 그리드 데이터 조회
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("svhistorydetailAjax.do")
+	public @ResponseBody AjaxBean svhistorydetailAjax(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			
+			String varStr = service.getVarStr(bean, arrVarId);
+			
+			if(!StringUtils.isEmpty(varStr)) {
+				bean.setVar_id_str(varStr.substring(1, varStr.length()));
+			}
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getSVChangeHistoryDetailList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * SV 변경 히스토리 차트 데이터 조회
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("getSVChgHisChartList.do")
+	public @ResponseBody AjaxBean getSVChgHisChartList(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			
+			String varStr = service.getVarStr(bean, arrVarId);
+			
+			if(!StringUtils.isEmpty(varStr)) {
+				bean.setVar_id_str(varStr.substring(1, varStr.length()));
+			}
+			ajaxBean.setData("chartlist", service.selectList("pmngSqlMap.getSVChgHisChartList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * SV History Action(추가/수정) Ajax
+	 * @param UserInfoBean
+	 * @return
+	 */
+	@RequestMapping(value = "svHistActionAjax.do")
+	public @ResponseBody AjaxBean svHistActionAjax(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			service.update("pmngSqlMap.updateSvHist", bean);
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			ajaxBean.setSysmsg(e.getMessage());
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 파라미터 트렌드 모니터링
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "trendMoni.do")
+	public ModelAndView trendMoni(
+			PmngReportBean bean
+		) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			
+			// trendMoniJs.jsp =>  etime = stime + 30MINUTE
+			String edate	=	DateCheck.getCurrentDate("yyyy-MM-dd HH:mm:ss");
+			String sdate	=	DateCheck.getDateAdd(edate,"yyyy-MM-dd HH:mm:ss",Calendar.MINUTE,-30);
+			String stime    =   sdate.substring(11);
+			String etime    =   edate.substring(11);
+			
+			mv.addObject("sdate", sdate);
+			mv.addObject("edate", edate);
+			mv.addObject("stime", stime);
+			mv.addObject("etime", etime);
+			
+			//TODO lot_list 조회 쿼리 실행
+			mv.addObject("viewName", "../../custom/pmng/trendMoni");
+			mv.setViewName("/common/layout/mng_layout_nolnb");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+
+	/**
+	 * 파라미터 트리 조회
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("paraTreeAjax.do")
+	public @ResponseBody AjaxBean paraTreeAjax(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			
+			List<TreeInfoBean> l = service.selectList("pmngSqlMap.getParaTreeList", bean);
+			ajaxBean.setData("list", JsonUtil.getRecursiveJson(JSONArray.fromObject(l), "tree_seq", "p_tree_seq").toString());
+			
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * CTQ 트리 조회
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("ctqTreeAjax.do")
+	public @ResponseBody AjaxBean ctqTreeAjax(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			
+			List<TreeInfoBean> l = service.selectList("pmngSqlMap.getCTQTreeList", bean);
+			ajaxBean.setData("list", JsonUtil.getRecursiveJson(JSONArray.fromObject(l), "tree_seq", "p_tree_seq").toString());
+			
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * zs raw 데이터 조회
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("zsRawAjax.do")
+	public @ResponseBody AjaxBean zsRawAjax(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			String varStr = service.getVarStr(bean, arrVarId);
+			
+			if(!StringUtils.isEmpty(varStr)) {
+				bean.setVar_id_str(varStr.substring(1, varStr.length()));
+			}
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getZsRawList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+//	/**
+//	 * 장치 상태 조회 ajax
+//	 * @param bean
+//	 * @return
+//	 */
+//	@RequestMapping("zsDvcStatusAjax.do")
+//	public @ResponseBody AjaxBean zsDvcStatusAjax(
+//			PmngReportBean bean
+//			) {
+//		AjaxBean ajaxBean = new AjaxBean();
+//		try {
+//			bean.setDvc_id(service.getPmngDvcid().toString());
+//			
+//			ajaxBean.setData("list", service.selectList("pmngSqlMap.getzsDvcStatus", bean));
+//			ajaxBean.setResult(true);
+//			
+//		} catch (Exception e) {
+//			e.printStackTrace();
+//		}
+//		return ajaxBean;
+//	}
+	
+	/**
+	 * 트렌트 차트 알람 데이터 조회
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("trendAlarmAjax.do")
+	public @ResponseBody AjaxBean trendAlarmAjax(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getTrendAlarmList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 트렌트 차트 알람 데이터 조회
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("trendAlarmClickAjax.do")
+	public @ResponseBody AjaxBean trendAlarmClickAjax(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getTrendAlarmDetail", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+
+	/**
+	 * 에러 분석
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "errAnalysis.do")
+	public ModelAndView errAnalysis(PmngReportBean bean) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			
+			// errAnalysis.jsp =>  etime = stime + 10MINUTE
+			String edate	=	DateCheck.getCurrentDate("yyyy-MM-dd HH:mm:ss");
+			String sdate	=	DateCheck.getDateAdd(edate,"yyyy-MM-dd HH:mm:ss",Calendar.MINUTE,-10);
+			String stime    =   sdate.substring(11);
+			String etime    =   edate.substring(11);
+			mv.addObject("sdate", sdate);
+			mv.addObject("edate", edate);
+			mv.addObject("stime", stime);
+			mv.addObject("etime", etime);
+			
+			mv.addObject("sample_size", service.selectOne("pmngSqlMap.getSampleSize"));
+			mv.addObject("viewName", "../../custom/pmng/errAnalysis");
+			mv.setViewName("/common/layout/mng_layout_nolnb");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	/**
+	 * 에러 분석 Summary Ajax
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("errAnalysisSummaryAjax.do")
+	public @ResponseBody AjaxBean trendAlarmClickAjax(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			ajaxBean.setData("tot_list", service.selectList("pmngSqlMap.getTotalErrSummary", bean));
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getErrSummary", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 에러 분석 차트 Ajax
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("errAnalysisChartAjax.do")
+	public @ResponseBody AjaxBean errAnalysisChartAjax(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			
+			ajaxBean.setData("tot_list", service.selectList("pmngSqlMap.getTotalErrSummary", bean));
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getErrSummary", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+
+	/**
+	 * 에러 분석 알람 Ajax
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("errAnalysisAlarmAjax.do")
+	public @ResponseBody AjaxBean errAnalysisAlarmAjax(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+			
+			//ng 개수
+			ajaxBean.setData("ng_cnt", service.selectList("pmngSqlMap.getErrNGcnt", bean));
+			//Material list
+			ajaxBean.setData("Mate_list", service.selectList("pmngSqlMap.getErrMaterialList", bean));
+			//trouble list
+			ajaxBean.setData("trouble_list", service.selectList("pmngSqlMap.getErrTroubleList", bean));
+			
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * variable 룰 관리
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "varRulemng.do")
+	public ModelAndView varRulemng(PmngReportBean bean) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			mv.addObject("viewName", "../../alarm/pmng/varRulemng");
+			mv.setViewName("/common/layout/mng_layout_nolnb");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+
+	/**
+	 * variable 룰 관리 Ajax
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("varRulemngAjax.do")
+	public @ResponseBody AjaxBean varRulemngAjax(
+			PmngReportBean bean
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			
+			ajaxBean.setData("list", service.selectList("pmngSqlMap.getVarRuleList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+
+	/**
+	 * variable 룰 관리 디테일
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "varRuledetail.do")
+	public ModelAndView varRuledetail(
+			PmngReportBean bean
+			, @RequestParam(value = "action_type", defaultValue = "add") String action_type
+			, @RequestParam(value = "set_type", defaultValue = "SV") String set_type
+			) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			
+			switch (action_type) {
+			case "modify":  // 수정
+				mv.addObject("bean", service.selectOne("pmngSqlMap.getVarRuleDetail", bean));
+				mv.addObject("var_id", bean.getVar_id());
+				mv.addObject("based_var_id", bean.getBased_var_id());
+				break;
+			}
+			
+			mv.addObject("variable_list", JSONArray.fromObject(service.selectList("pmngSqlMap.getVariable", bean)).toString());
+			mv.addObject("sv_variable_list", JSONArray.fromObject(service.selectList("pmngSqlMap.getSVVariable", bean)).toString());
+			mv.addObject("pv_variable_list", JSONArray.fromObject(service.selectList("pmngSqlMap.getPVVariable", bean)).toString());
+			
+//			mv.addObject("variable_list", service.selectList("pmngSqlMap.getVariable", bean));
+			mv.addObject("action_type", action_type);
+			mv.addObject("set_type", set_type);
+			
+			mv.addObject("viewName", "../../alarm/pmng/varRuledetail");
+			mv.setViewName("/common/layout/mng_modal");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	/**
+	 * Variable Rule Action(추가/수정) Ajax
+	 * @param UserInfoBean
+	 * @return
+	 */
+	@RequestMapping(value = "varRuleActionAjax.do")
+	public @ResponseBody AjaxBean varRuleActionAjax(
+			PmngReportBean bean
+			, @RequestParam(value = "action_type", defaultValue = "add") String action_type
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			
+			service.varRuleAction(bean, action_type);
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			ajaxBean.setSysmsg(e.getMessage());
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 차트 데이터 CSV 다운로드
+	 * @param bean
+	 * @return
+	 */
+	@RequestMapping("chartCVSDownload.do")
+	public @ResponseBody AjaxBean chartCVSDownload(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			, HttpServletResponse res
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			bean.setDvc_id(service.getPmngDvcid().toString());
+//			String varStr = service.getVarStr(bean, arrVarId);	
+			
+//			if(!StringUtils.isEmpty(varStr)) {
+//				bean.setVar_id_str(varStr.substring(1, varStr.length()));
+//			}
+			Map<String, Object> m = new HashMap<>();
+			
+			m.put("dvc_id", bean.getDvc_id());
+			m.put("sdate", bean.getSdate());
+			m.put("edate", bean.getEdate());
+			m.put("st_md", bean.getSdate().substring(4,8));
+			m.put("et_md", bean.getEdate().substring(4,8));
+			m.put("var_id_str", arrVarId);
+			m.put("query_type", bean.getSet_type());
+			
+			
+			service.createChartExcel(m, res);
+			
+//			ajaxBean.setData("list", service.selectList("pmngSqlMap.getTrendAlarmDetail", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 실린더 모니터링
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "cylinderMonitor.do")
+	public ModelAndView cylinderMonitor(PmngReportBean bean) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			String reset = service.selectOne("thresholdSqlMap.getResetTime");
+			
+			mv.addObject("reset", reset);
+			mv.addObject("viewName", "../../custom/pmng/cylinder");
+			mv.setViewName("/common/layout/mng_layout_nolnb");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	/**
+	 * 실린더 장비 상태 조회 Ajax
+	 */
+	
+	@RequestMapping("cylinderStatusAjax.do")
+	public @ResponseBody AjaxBean cylinderStatusAjax(PmngReportBean bean) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			ajaxBean.setData("list", service.selectList("thresholdSqlMap.getStatusList", bean));
+			ajaxBean.setResult(true);
+		} catch (Exception e) {
+			e.printStackTrace();
+			ajaxBean.setSysmsg(e.getMessage());
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 실린더 값 조회 Ajax
+	 */
+	
+	@RequestMapping("cylinderCylceAjax.do")
+	public @ResponseBody AjaxBean cylinderCylceAjax(PmngReportBean bean) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			ajaxBean.setData("list", service.selectList("thresholdSqlMap.getCycleList", bean));
+			ajaxBean.setResult(true);
+		} catch (Exception e) {
+			e.printStackTrace();
+			ajaxBean.setSysmsg(e.getMessage());
+		}
+		return ajaxBean;
+	}
+	/**
+	 * 실린더 임계치 관리
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "cylinderThresold.do")
+	public ModelAndView cylinderThresold(PmngReportBean bean) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			
+			String reset = service.selectOne("thresholdSqlMap.getResetTime");
+			String num = service.selectOne("thresholdSqlMap.getUseNumber");
+			
+			mv.addObject("reset", reset);
+			mv.addObject("num", num);
+			mv.addObject("viewName", "../../custom/pmng/cylinderthresoldmng");
+			mv.setViewName("/common/layout/mng_layout_nolnb");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	/**
+	 * 실린더 임계치 조회
+	 * @param req
+	 * @param res
+	 * @return
+	 * @throws ServletException
+	 */
+	@RequestMapping(value = "settingthresholdAjax.do")
+	public @ResponseBody AjaxBean settingthresholdAjax(
+			PmngReportBean bean, HttpServletRequest req, HttpServletResponse res
+			) throws ServletException {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			
+			ajaxBean.setData("list", service.selectList("thresholdSqlMap.getSettingThresholdInfo", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			ajaxBean.setSysmsg(e.getMessage());
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 실린더 임계치 설정 Action Ajax
+	 * @param req
+	 * @param res
+	 * @return
+	 * @throws ServletException
+	 */
+	@RequestMapping(value = "settingthresholdActionAjax.do")
+	public @ResponseBody AjaxBean settingthresholdActionAjax(
+			HttpServletRequest req, HttpServletResponse res,
+			@RequestParam(value="refresh", required=false) String refresh,
+			@RequestParam(value="cyl_cnt", required=false) Integer cyl_cnt
+			) throws ServletException {
+		AjaxBean ajaxBean = new AjaxBean();
+		Map<String, Object> map = RequestUtil.getReqParamToMap(req);
+		try {
+			
+			if(!StringUtils.isEmpty(refresh)) {
+				service.update("thresholdSqlMap.updateSettingRefreshTime", refresh);
+			}
+			
+			//기존 정보 가져오기
+			List<Map<String, Object>> th_l = service.selectList("thresholdSqlMap.getSettingThresholdInfo");
+
+			//기존에 있던 정보 전체 삭제(t_setting_threshold)
+			service.delete("thresholdSqlMap.deleteSettingThresholdInfo", map);
+
+			for(int i=0; i<cyl_cnt*2; i++) {
+				//새로운 정보 
+				Map<String, Object> m = new HashMap<String, Object>();
+				m.put("threshold_type", map.get("arr["+i+"][threshold_type]"));
+				m.put("threshold_attr1", map.get("arr["+i+"][threshold_attr1]"));
+				m.put("threshold_attr2", map.get("arr["+i+"][threshold_attr2]"));
+				m.put("threshold_attr3", map.get("arr["+i+"][threshold_attr3]"));
+				m.put("threshold_attr4", map.get("arr["+i+"][threshold_attr4]"));
+				m.put("threshold_attr5", map.get("arr["+i+"][threshold_attr5]"));
+				m.put("dvc_id", map.get("arr["+i+"][threshold_dvc_id]"));
+				m.put("login_user_id", map.get("login_user_id"));
+				
+				//리스트에 내용이 있으면
+				if(!th_l.isEmpty()) {
+					//기존 정보 담기
+					Map<String, Object> th_m = new HashMap<String, Object>();
+					th_m = (Map<String, Object>) th_l.get(i);
+					
+					//기존정보와 새로운 정보 비교
+					for(int j=1; j<5; j++) {
+						Double new_num = Double.parseDouble(m.get("threshold_attr"+j).toString());				
+						Double old_num = (Double) th_m.get("threshold_attr"+j);
+						
+						//기존정보와 새로운 정보 비교
+						if(old_num.compareTo(new_num) != 0) {
+							service.insert("thresholdSqlMap.insertSettingThresholdHist", th_m);
+							break;
+						}
+					}
+				}
+				//새로운 정보 insert
+				service.insert("thresholdSqlMap.insertSettingThresholdInfo", m);
+			}
+			
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			ajaxBean.setSysmsg(e.getMessage());
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 실린더 차트 화면
+	 */
+	@RequestMapping(value = "cylinderChartMonitor.do")
+	public ModelAndView cylinderChartMonitor(PmngReportBean bean) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			mv.addObject("viewName", "../../custom/pmng/dataChart");
+			mv.setViewName("/common/layout/mng_layout_nolnb");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	
+	/**
+	 * Variable 트리
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "cylinderTreeAjax.do")
+	public @ResponseBody AjaxBean cylinderTreeAjax(TreeInfoBean treeInfoBean) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			ajaxBean.setData("tree_list", service.selectList("thresholdSqlMap.getVarDataList", treeInfoBean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			ajaxBean.setSysmsg(e.getMessage());
+		}
+		return ajaxBean;
+	}
+	
+		
+	/**
+	 * 실린더 차트 Ajax
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "cylinderChartAjax.do")
+	public @ResponseBody AjaxBean cylinderChartAjax(CustomBean bean) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			ajaxBean.setData("list", service.selectList("thresholdSqlMap.getDetectChartList", bean));
+			ajaxBean.setData("th_list", service.selectList("thresholdSqlMap.getthresholdList", bean));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			ajaxBean.setSysmsg(e.getMessage());
+		}
+		return ajaxBean;
+	}	
+	
+	/**
+	 * 실린더 Excel 다운로드 Ajax
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "getCylinderExcelAjax.do")
+	public @ResponseBody AjaxBean getCylinderExcelAjax(HttpServletRequest req, HttpServletResponse res) 
+			throws ServletException {
+		AjaxBean ajaxBean = new AjaxBean();
+		
+		Map<String, Object> m = RequestUtil.getReqParamToMap(req);
+		
+		try{
+			String result = service.createCylinderChartExcel(m, res);
+			ajaxBean.setData("msg", result);
+			ajaxBean.setResult(true);
+		}catch( Exception e ){
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 실린더 시그마 계산 Ajax
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "searchSigmaAjax.do")
+	public @ResponseBody AjaxBean searchSigmaAjax(CustomBean bean,
+			@RequestParam(value="d_list[]", required=false) List<String> d_idArr) 
+			throws ServletException {
+		AjaxBean ajaxBean = new AjaxBean();
+		try{
+			bean.setDvc_list(d_idArr);
+			
+			ajaxBean.setData("list", service.selectList("thresholdSqlMap.getSearchSigma", bean));
+			ajaxBean.setResult(true);
+		}catch( Exception e ){
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 * 비전 이미지 모달
+	 * @param 
+	 * @return
+	 */
+	@RequestMapping(value = "cylRecallModal.do")
+	public ModelAndView cylRecallModal(PmngReportBean bean) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			mv.addObject("viewName", "../../custom/pmng/cylmodal");
+			mv.setViewName("/common/layout/mng_modal");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	/**
+	 * Recall history Ajax
+	 * @param 
+	 */
+	@RequestMapping("cylRecallListAjax.do")
+	public @ResponseBody AjaxBean cylRecallListAjax(CustomBean bean) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			ajaxBean.setData("list", service.selectList("thresholdSqlMap.getRecallHistData"));
+			ajaxBean.setResult(true);
+		} catch (Exception e) {
+			e.printStackTrace();
+			ajaxBean.setSysmsg(e.getMessage());
+		}
+		return ajaxBean;
+	}
+	
+	
+	
+	
+	/**
+	 * CMI Lami opeation
+	 * @param CustomBean bean 
+	 * @return
+	 */
+	@RequestMapping(value = "cmiOperation.do")
+	public ModelAndView cmiOperation(CustomBean bean) {
+		ModelAndView mv = new ModelAndView();
+		try {
+			String url = request.getRequestURI().substring(request.getRequestURI().lastIndexOf("/")+1);
+			bean.setLoadfactor_type("LOAD_FACTOR");
+			bean.setTree_nm("CWA_PKG4");
+			bean.setParent_url(url);
+			String reset = service.selectOne("thresholdSqlMap.getResetTime");
+			mv.addObject("bean",bean);
+			mv.addObject("reset", reset);
+			mv.addObject("YYYY", new SimpleDateFormat("YYYY").format(new Date()));
+			mv.addObject("mmdd", new SimpleDateFormat("MM/dd").format(new Date()));
+			mv.addObject("dvcList", service.selectList("customSqlMap.getDvcList", bean));
+			mv.addObject("unit", service.getCmcdOne("MACHINE", "UNIT", "Y"));
+			mv.addObject("viewName", "../../custom/pmng/operator/operation");
+			mv.setViewName("/common/layout/mng_layout_nolnb");
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mv;
+	}
+	/**
+	 * CTQ 실시간 데이터 조회 Ajax
+	 * @param bean
+	 * @param arrVarId
+	 * @return
+	 */
+	@RequestMapping("getVisionRecentList.do")
+	public @ResponseBody AjaxBean getVisionRecentList(
+			PmngReportBean bean
+			, @RequestParam(value="var_arr[]", required=false) List<String> arrVarId
+			) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			ajaxBean.setData("list0", service.selectList("pmngSqlMap.getRearMeanNgList",0));
+			ajaxBean.setData("list1", service.selectList("pmngSqlMap.getRearMeanNgList",1));
+			ajaxBean.setResult(true);
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return ajaxBean;
+	}
+	
+	/**
+	 *  OP용 실린더 값 조회 Ajax
+	 */
+	
+	@RequestMapping("op_cylinderCylceAjax.do")
+	public @ResponseBody AjaxBean op_cylinderCylceAjax(PmngReportBean bean) {
+		AjaxBean ajaxBean = new AjaxBean();
+		try {
+			ajaxBean.setData("list", service.selectList("thresholdSqlMap.getCycleListOp",bean));
+			ajaxBean.setResult(true);
+		} catch (Exception e) {
+			e.printStackTrace();
+			ajaxBean.setSysmsg(e.getMessage());
+		}
+		return ajaxBean;
+	}
+	
+}

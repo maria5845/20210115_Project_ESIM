@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:57 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="pmngSqlMap">
+
+	<select id="getVisionVarId" parameterType="hmap" resultType="hmap">
+        select cd_desc
+        from t_cm_cd
+        where use_yn = 'Y'
+        <if test='cat_cd != null and !"".equals(cat_cd)'>
+            and cat_cd = #{cat_cd}
+        </if>
+        <if test='cd != null and !"".equals(cd)'>
+            and cd = #{cd}
+        </if>
+    </select>
+    
+    <select id="getInputCount" parameterType="hmap" resultType="int">
+        select coalesce(round(max(data_val)::numeric,2), 1)
+		from t_zs_raw
+		where 1=1
+		and t_md BETWEEN #{st_md} and #{et_md}
+		and var_id = 'Input_Count'
+		and data_tm BETWEEN #{stime} and #{etime}
+    </select>
+    
+<!--     0 = 검사항목OK -->
+<!-- 	1 = 검사항목NG -->
+    <select id="getVarIdNgCount" parameterType="hmap" resultType="int">
+        select count(${result}) 
+        from t_vision_raw
+        where t_md between #{st_md} and #{et_md}
+	        and data_tm between #{stime} and #{etime}
+	        and ${result} = 1
+    </select>
+    
+    <select id="getTargetVal" parameterType="hmap" resultType="float">
+        (select round(((${USL}-${LSL}) / 2)::numeric,2) as data_val
+        from t_vision_raw
+        where t_md between #{st_md} and #{et_md}
+	        and data_tm between #{stime} and #{etime}
+        order by data_tm desc
+        limit 1)
+        union all
+        select 0 as data_val
+        where not exists (select (${USL}-${LSL}) / 2 as data_val
+		        from t_vision_raw
+		        where t_md between #{st_md} and #{et_md}
+	        		and data_tm between #{stime} and #{etime}
+		        order by data_tm desc limit 1)
+    </select>
+    
+    <select id="getMinVal" parameterType="hmap" resultType="float">
+        select coalesce(round(MIN(${data_val})::numeric,2) , 0)
+        from t_vision_raw
+        where t_md between #{st_md} and #{et_md}
+	        and data_tm between #{stime} and #{etime}
+    </select>
+    
+    <select id="getMaxVal" parameterType="hmap" resultType="float">
+        select coalesce(round(MAX(${data_val})::numeric,2) , 0)
+        from t_vision_raw
+        where t_md between #{st_md} and #{et_md}
+	        and data_tm between #{stime} and #{etime}
+    </select>
+    
+    <select id="getAvgVal" parameterType="hmap" resultType="float">
+        select coalesce(round(AVG(${data_val})::numeric,2), 0)
+        from t_vision_raw
+        where t_md between #{st_md} and #{et_md}
+	        and data_tm between #{stime} and #{etime}
+    </select>
+    
+    <select id="getSTDVal" parameterType="hmap" resultType="float">
+        select coalesce(round(STDDEV(${data_val})::numeric,2) , 0)
+        from t_vision_raw
+        where t_md between #{st_md} and #{et_md}
+	        and data_tm between #{stime} and #{etime}
+    </select>
+    
+    <select id="getMinMaxAvgSTDVal" parameterType="hmap" resultType="hmap">
+        select 
+        coalesce(round(MIN(${data_val})::numeric,2), 0)::float as min_val
+        , coalesce(round(MAX(${data_val})::numeric,2), 0)::float as max_val
+        , coalesce(round(AVG(${data_val})::numeric,2), 0)::float as avg_val
+        , coalesce(round(STDDEV(${data_val})::numeric,2), 0)::float as std_val
+        from t_vision_raw
+        where t_md between #{st_md} and #{et_md}
+	        and data_tm between #{stime} and #{etime}
+    </select>
+    
+    <select id="getUslLslVal" parameterType="hmap" resultType="hmap">
+        select coalesce(t2.lsl, t1.lsl ) as lsl
+			, coalesce(t2.usl, t1.usl ) as usl
+		from (select 0 as lsl, 0 as usl) t1
+		left outer join (
+			select coalesce(${LSL}, 0)::float as lsl
+				, coalesce(${USL}, 0)::float as usl
+			from t_vision_raw
+			where data_tm between #{stime} and #{etime}
+			order by data_tm desc
+			limit 1
+		) t2
+		on 1=1 
+    </select>
+    
+    <select id="getVarId" parameterType="hmap" resultType="String">
+    	select var_id 
+    	from t_vision_var_mapp
+    	where vision_gubun = #{vision_gubun}
+    </select>
+    
+    <select id="getUSLVal" parameterType="hmap" resultType="float">
+        (select round(data_val::numeric ,2)
+        from t_zs_raw
+        where t_md BETWEEN #{st_md} and #{et_md}
+        	and data_tm BETWEEN #{stime} and #{etime}
+		    and var_id = #{USL}
+        order by data_tm desc
+        limit 1)
+        union all
+        select 0 as data_val
+        where not exists (select round(data_val::numeric ,2)
+		        from t_zs_raw
+		        where t_md BETWEEN #{st_md} and #{et_md}
+	        	and data_tm BETWEEN #{stime} and #{etime}
+			    and var_id = #{USL}
+		        order by data_tm desc
+		        limit 1)
+    </select>
+    
+    <select id="getLSLVal" parameterType="hmap" resultType="float">
+        (select round(data_val::numeric ,2)
+        from t_zs_raw
+        where t_md BETWEEN #{st_md} and #{et_md}
+        	and data_tm BETWEEN #{stime} and #{etime}
+		    and var_id = #{LSL}
+        order by data_tm desc
+        limit 1)
+        union all
+        select 0 as data_val
+        where not exists (select round(data_val::numeric ,2)
+		        from t_zs_raw
+		        where t_md BETWEEN #{st_md} and #{et_md}
+	        	and data_tm BETWEEN #{stime} and #{etime}
+			    and var_id = #{LSL}
+		        order by data_tm desc
+		        limit 1)
+    </select>
+    
+    <select id="getAllNgCnt" parameterType="hmap" resultType="int">
+	    with tbl as (
+			select count(a1u_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a1u_result = 1 union all
+			select count(a2u_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a2u_result = 1 union all
+			select count(a3u_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a3u_result = 1 union all
+			select count(a4u_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a4u_result = 1 union all
+			select count(a5u_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a5u_result = 1 union all
+			select count(a6u_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a6u_result = 1 union all	
+			select count(a1l_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a1l_result = 1 union all
+			select count(a2l_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a2l_result = 1 union all
+			select count(a3l_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a3l_result = 1 union all
+			select count(a4l_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a4l_result = 1 union all
+			select count(a5l_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a5l_result = 1 union all
+			select count(a6l_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and a6l_result = 1 union all	
+			select count(ts_u_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and ts_u_result = 1 union all	
+			select count(ts_a_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and ts_a_result = 1 union all	
+			select count(tw_i_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and tw_i_result = 1 union all	
+			select count(tw_result)   as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and tw_result = 1 union all	
+			select count(TH_A_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and TH_A_result = 1 union all	
+			select count(sm1_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and sm1_result = 1 union all	
+			select count(sm2_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and sm2_result = 1 union all	
+			select count(sm3_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and sm3_result = 1 union all	
+			select count(sm4_result) as cnt from t_vision_raw where t_md BETWEEN #{st_md} and #{et_md} and data_tm BETWEEN #{stime} and #{etime} and sm4_result = 1 
+		) select sum(cnt) from tbl
+    </select>
+<!--     <select id="upsertCtqData" parameterType="hmap" resultType="int"> -->
+<!--         INSERT INTO t_ctq_data(lot_id, var_id, data_type, data_val, lot_sta_time)  -->
+<!--         values (#{lot_id}, #{var_id}, #{data_type}, #{data_val}, #{lot_sta_time}) -->
+<!--       ON CONFLICT ON CONSTRAINT t_ctq_data_pk -->
+<!--       DO   UPDATE -->
+<!--       SET (data_val) = (#{data_val}) -->
+<!--       where lot_id = #{lot_id} -->
+<!--       and var_id = #{var_id} -->
+<!--       and data_type = #{data_type} -->
+<!--       and lot_sta_time = #{lot_sta_time} -->
+<!--     </select> -->
+	
+</mapper>

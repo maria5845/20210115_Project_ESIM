@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:59 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="userSqlMap">
+
+	<!-- 사용자 리스트 -->
+	<select id="getUserInfoList" parameterType="userInfoBean" resultType="userInfoBean">
+		SELECT 
+			ROW_NUMBER() OVER (order by a.auth_gr_no asc, a.user_id asc) as rn
+			, a.*
+		FROM (		
+			SELECT
+				t1.user_id
+				, t1.user_nm
+				, t1.user_pwd
+				, t1.user_type
+				, COALESCE(t1.user_position, '-') 	AS user_position
+				, COALESCE(t1.empno, '-') 			AS empno
+				, COALESCE(t1.dept_nm, '-') 		AS dept_nm
+				, COALESCE(t1.user_email, '-') 		AS user_email
+				, COALESCE(t1.mobile_tel_no, '-') 	AS mobile_tel_no
+				, t1.user_desc
+				, t1.pwd_mdfy_dt
+				, t1.use_yn
+				, t1.gen_by
+				, t1.gen_dt
+				, t1.mdfy_by
+				, t1.mdfy_dt
+				, CASE WHEN t2.cnt > 0
+					THEN CONCAT(t2.auth_gr_nm, ' 외 ', t2.cnt, '개')
+					ELSE t2.auth_gr_nm
+				END AS auth_gr_nm
+				, t2.auth_gr_no
+			FROM t_user_info t1
+			LEFT OUTER JOIN (
+				SELECT
+					a.auth_gr_no
+					, a.auth_gr_nm
+					, b.cnt
+					, b.user_id
+				FROM t_auth_gr a
+				INNER JOIN (
+					SELECT 
+						MIN(auth_gr_no) AS auth_gr_no
+						, COUNT(auth_gr_no) - 1 AS cnt
+						, user_id
+					FROM t_user_auth_gr
+					GROUP BY user_id
+				) b
+					ON a.auth_gr_no = b.auth_gr_no
+			) t2
+				ON t1.user_id = t2.user_id
+			WHERE 1=1
+			<include refid="getUserInfoListWhereSQL"></include>
+		) a
+	</select>
+	
+	<sql id="getUserInfoListWhereSQL" >
+		<if test='user_id != null and !"".equals(user_id)'>
+			AND t1.user_id LIKE CONCAT('%',#{user_id},'%')
+		</if>
+		<if test='mobile_tel_no != null and !"".equals(mobile_tel_no)'>
+			AND t1.mobile_tel_no LIKE CONCAT('%',#{mobile_tel_no},'%')
+		</if>
+		<if test='user_email != null and !"".equals(user_email)'>
+			AND t1.user_email LIKE CONCAT('%',#{user_email},'%')
+		</if>
+		<if test='user_nm != null and !"".equals(user_nm)'>
+			AND t1.user_nm LIKE CONCAT('%',#{user_nm},'%')
+		</if>
+		<if test='auth_gr_no != null and auth_gr_no > 0'>
+			AND t2.auth_gr_no = #{auth_gr_no}
+		</if>
+		<if test='use_yn != null and !"".equals(use_yn)'>
+			AND t1.use_yn = #{use_yn}
+		</if>
+	</sql>
+	
+ 	<!-- 사용자 리스트 카운터 -->
+	<select id="getUserInfoListCount" parameterType="userInfoBean" resultType="int">
+		SELECT 
+			COUNT(*)
+		FROM t_user_info t1
+		LEFT OUTER JOIN (
+			SELECT
+				a.auth_gr_no
+				, a.auth_gr_nm
+				, b.cnt
+				, b.user_id
+			FROM t_auth_gr a
+			INNER JOIN (
+				SELECT 
+					MIN(auth_gr_no) AS auth_gr_no
+					, COUNT(auth_gr_no) - 1 AS cnt
+					, user_id
+				FROM t_user_auth_gr
+				GROUP BY user_id
+			) b
+				ON a.auth_gr_no = b.auth_gr_no
+		) t2
+			ON t1.user_id = t2.user_id
+		WHERE 1=1
+		<include refid="getUserInfoListWhereSQL"></include>
+	</select>
+	
+	<!-- 사용자 수정할때 가져오는 데이터들 -->
+	<select id="getUserInfo" parameterType="userInfoBean" resultType="userInfoBean">
+		SELECT
+			t1.user_id
+			, t1.user_nm
+			, t1.user_pwd
+			, t1.user_type
+			, t1.empno
+			, t1.dept_nm
+			, t1.user_email
+			, t1.mobile_tel_no
+			, t1.user_desc
+			, t1.pwd_mdfy_dt
+			, t1.use_yn
+			, t1.gen_by
+			, t1.gen_dt
+			, t1.mdfy_by
+			, t1.mdfy_dt
+			, t2.auth_gr_no
+			, CASE WHEN t2.cnt > 0
+				THEN CONCAT(t2.auth_gr_nm, ' 외 ', t2.cnt, '개')
+				ELSE t2.auth_gr_nm
+			END AS auth_gr_nm
+		FROM t_user_info t1
+		LEFT OUTER JOIN (
+			SELECT
+				a.auth_gr_no
+				, a.auth_gr_nm
+				, b.cnt
+				, b.user_id
+			FROM t_auth_gr a
+			INNER JOIN (
+				SELECT 
+					MIN(auth_gr_no) AS auth_gr_no
+					, COUNT(auth_gr_no) - 1 AS cnt
+					, user_id
+				FROM t_user_auth_gr
+				GROUP BY user_id
+			) b
+				ON a.auth_gr_no = b.auth_gr_no
+		) t2
+			ON t1.user_id = t2.user_id
+		WHERE t1.user_id = #{user_id}
+	</select>
+	
+	<!-- 사용자 추가 -->
+	<insert id="insertUserInfo" parameterType="userInfoBean">
+		INSERT INTO t_user_info (
+			user_id
+			,	user_nm
+			,	user_pwd
+			,	user_type
+			,	empno
+			,	dept_nm
+			,   user_position
+			,	user_email
+			,	mobile_tel_no
+			,	user_desc
+			,	use_yn
+			,	gen_by
+			,	gen_dt
+		) VALUES (
+				#{user_id}
+			,	#{user_nm}
+			,	#{user_pwd}
+			,	#{user_type}
+			,	#{empno}
+			,	#{dept_nm}
+			,   #{user_position}
+			,	#{user_email}
+			,	#{mobile_tel_no}
+			,	#{user_desc}
+			,	'Y'
+			,	#{login_user_id}
+			,	now()
+		)
+	</insert>
+	
+	<!-- 사용자 수정-->
+	<update id="updateUserInfo" parameterType="userInfoBean">
+		update t_user_info		
+		set
+			mdfy_dt					=	now()
+			, mdfy_by				= #{login_user_id}
+	 		, user_nm				= #{user_nm}
+	 		, user_type				= #{user_type}
+	 		, empno					= #{empno}
+	 		, dept_nm				= #{dept_nm}
+	 		, user_position			= #{user_position}
+	 		, user_email			= #{user_email}
+	 		, mobile_tel_no			= #{mobile_tel_no}
+	 		, user_desc				= #{user_desc}
+	 		, use_yn				= #{use_yn}
+	 		<if test='user_pwd != null and !"".equals(user_pwd)'>
+	 		, user_pwd				= #{user_pwd}
+	 		, pwd_mdfy_dt			= now()
+	 		</if>
+		where user_id = #{user_id}	
+	</update>
+	
+	<!-- 사용자 삭제-->
+	<update id="deleteUserInfo" parameterType="userInfoBean">
+		UPDATE t_user_info
+		SET	use_yn = 'N'
+		WHERE user_id = #{user_id}	
+	</update>
+	
+	<!--  -->
+	<select id="getUserTabInfo" parameterType="userInfoBean" resultType="userInfoBean">
+		SELECT 
+			a1.user_id
+			, a1.tab_info
+	 		, a3.home_yn
+	 		, a3.home_menu_no
+		  FROM t_user_info a1
+		  LEFT OUTER JOIN t_user_auth_gr a2
+		    on a1.user_id = a2.user_id
+		  LEFT OUTER JOIN t_auth_gr a3
+		    on a2.auth_gr_no = a3.auth_gr_no
+	      WHERE a1.user_id = #{user_id}
+	</select>
+	
+	<!--  -->
+	<insert id="updateUserTabInfo" parameterType="userInfoBean">
+		UPDATE t_user_info
+		SET tab_info = #{tab_info}
+			WHERE user_id= #{login_user_id}
+	</insert>
+	
+	<select id="getAuthGrListByUserid" parameterType="userInfoBean" resultType="hmap">
+		SELECT 
+			t1.auth_gr_no
+			, t1.auth_gr_nm
+			, t1.auth_gr_desc
+			, t1.tot_menu_auth_yn
+			, t1.use_yn
+			, CASE WHEN t2.user_id IS NULL
+				THEN 'false'
+				ELSE 'true'
+			END AS checked
+		FROM t_auth_gr t1
+		LEFT OUTER JOIN t_user_auth_gr t2
+			ON t1.auth_gr_no = t2.auth_gr_no
+				AND t2.user_id = #{user_id}
+		ORDER BY t1.auth_gr_no ASC
+	</select>
+	
+	
+	<!-- 사용자 PIE 추가 -->
+	<insert id="insertUserPieListMapp" parameterType="hmap">
+		INSERT INTO t_user_pie_mapp (
+			user_id, pie_id
+		) VALUES ( 
+			#{user_id}, #{pie_id}
+		)
+	</insert>
+	
+	<delete id="deleteUserPieListMapp" parameterType="userInfoBean">
+		DELETE from t_user_pie_mapp
+		WHERE user_id = #{user_id}
+	</delete>
+	
+	<select id="getTreeListByUserid" parameterType="userInfoBean" resultType="hmap">
+		WITH RECURSIVE tree_query (
+			tree_seq, p_tree_seq, tree_nm, blank, tree_dpnm, depth_ord, sort, tree_desc, level, dvc_seq, tree_kd, use_yn
+		) AS (
+			SELECT
+				t1.tree_seq
+				, t1.p_tree_seq
+				, t1.tree_nm
+				, '   ' AS blank
+				, CAST(t1.tree_nm AS text) AS tree_dpnm
+				, t1.depth_ord
+				, TO_CHAR( CAST( (t1.depth_ord) AS int8), '09999999') AS sort
+				, t1.tree_desc
+				, 1 AS level
+				, t1.dvc_seq
+				, t1.tree_kd
+				, t1.use_yn
+			FROM t_tree_info t1
+			WHERE t1.p_tree_seq = 0
+		    UNION ALL
+		    SELECT
+				t2.tree_seq
+				, t2.p_tree_seq
+				, t2.tree_nm
+				, CONCAT('　　', t3.blank) AS blank
+				, CONCAT(t3.blank, '┗ ', t2.tree_nm) AS tree_dpnm
+				, t2.depth_ord
+				, CONCAT(t3.sort, ' > ', TO_CHAR( CAST( (t2.depth_ord ) AS int8), '09999999')) AS sort
+				, t2.tree_desc
+				, t3.level +1
+				, t2.dvc_seq
+				, t2.tree_kd
+				, t2.use_yn
+			FROM t_tree_info t2
+			INNER JOIN tree_query t3 
+				ON t2.p_tree_seq = t3.tree_seq
+		)
+		SELECT
+			a.tree_seq
+			, a.p_tree_seq
+			, a.tree_dpnm AS tree_nm
+			, a.depth_ord
+			, a.level
+			, a.sort
+			, a.dvc_seq
+			, a.tree_desc
+			, a.tree_kd
+			, cd1.cd_val AS tree_kd_nm
+			, a.use_yn
+			, c.dvc_id
+			, COALESCE(c.dvc_nm, '-') AS dvc_nm
+			, CASE WHEN b.user_id IS NULL
+				THEN 'false'
+				ELSE 'true'
+			END AS checked
+		FROM tree_query a
+		LEFT OUTER JOIN t_tree_user_mapp b
+			ON a.tree_seq = b.tree_seq
+				AND b.user_id = #{user_id}
+		LEFT OUTER JOIN t_dvc_info c
+			ON a.dvc_seq = c.dvc_seq
+		LEFT OUTER JOIN t_cm_cd cd1
+			ON cd1.cat_cd = 'TREE_KD' AND cd1.cd = a.tree_kd
+		ORDER BY a.sort ASC
+	</select>
+	
+</mapper>

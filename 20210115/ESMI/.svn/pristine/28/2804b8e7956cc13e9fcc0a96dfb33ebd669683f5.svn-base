@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:59 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="menuSqlMap">
+
+	<!-- 전체 메뉴 리스트 -->
+	<select id="getAllMenuList" parameterType="menuBean" resultType="menuBean">
+		SELECT
+			menu_no
+			, p_menu_no
+			, menu_nm
+			, menu_addr
+			, disp_ord
+			, menu_depth
+			, COALESCE(menu_desc, '') AS menu_desc
+			, act_type
+			, show_yn
+			, use_yn
+			, log_record_yn
+			, gen_by
+			, gen_dt
+			, mdfy_by
+			, mdfy_dt
+		FROM t_menu_info
+		WHERE 1=1
+		  AND use_yn = 'Y'
+	</select>
+	
+	<!-- 하위 메뉴 리스트 -->
+	<select id="getMenuListByParentMenuSeq" parameterType="menuBean" resultType="menuBean">
+		SELECT
+			menu_no
+			, p_menu_no
+			, menu_nm
+			, menu_addr
+			, disp_ord
+			, menu_depth
+			, COALESCE(menu_desc, '') AS menu_desc
+			, act_type
+			, show_yn
+			, use_yn
+			, log_record_yn
+			, gen_by
+			, gen_dt
+			, mdfy_by
+			, mdfy_dt
+		FROM t_menu_info
+		WHERE p_menu_no = #{p_menu_no}
+		ORDER BY disp_ord ASC
+	</select>
+	
+	<!-- 하위 메뉴 리스트 건수 -->
+	<select id="getMenuListCountByParentMenuSeq" parameterType="menuBean" resultType="int">
+		SELECT
+			count(*)
+		FROM t_menu_info
+		WHERE p_menu_no = #{p_menu_no}
+	</select>
+	
+	<!-- MenuSeq 해당하는 메뉴정보 조회 -->
+	<select id="getMenuByMenuSeq" parameterType="int" resultType="menuBean">
+		SELECT
+			menu_no
+			, p_menu_no
+			, menu_nm
+			, menu_addr
+			, disp_ord
+			, menu_depth
+			, COALESCE(menu_desc, '') as menu_desc
+			, act_type
+			, show_yn
+			, use_yn
+			, log_record_yn
+			, gen_by
+			, gen_dt
+			, mdfy_by
+			, mdfy_dt
+		FROM t_menu_info
+		WHERE menu_no = #{menu_no}
+	</select>
+	
+</mapper>

@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:56 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="langSqlMap">
+
+	<!-- 다국어 Properties 생성 -->
+	<select id="getLangProps" parameterType="langBean" resultType="langBean" >
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.lang_msg_cd ASC, a.lang_cd ASC) AS rn
+			, a.*
+		FROM (		
+			SELECT
+				t1.lang_base_seq
+				, t1.lang_cd
+				, COALESCE(cd1_lang.lang_msg_val, cd1.cd_val) AS lang_cd_nm
+				, t1.lang_msg_cd
+				, t1.lang_msg_val
+			FROM t_lang_base_info t1
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'LANG_CD'
+					AND t1.lang_cd = cd1.cd
+			LEFT OUTER JOIN t_lang_base_info cd1_lang
+				ON cd1_lang.lang_msg_cd = CONCAT('CODE.', cd1.cat_cd, '.', cd1.cd)
+			<where>
+				<if test='lang_cd != null and !"".equals(lang_cd)'>
+				AND t1.lang_cd = #{lang_cd}
+				</if>
+			</where>
+		) a
+	</select>
+	
+	<!-- 다국어 목록 -->
+	<select id="getLangList" parameterType="langBean" resultType="langBean" >
+		SELECT ROW_NUMBER() OVER (ORDER BY b1.lang_msg_cd ASC, b1.lang_cd ASC) AS rn
+			 , b1.lang_msg_cd
+			 , b1.lang_msg_val as lang_msg_ko
+			 , b2.lang_msg_val as lang_msg_en
+			 , b2.lang_msg_val as lang_msg_cn
+			 , b2.lang_msg_val as lang_msg_pl
+		  FROM (
+				SELECT a1.lang_cd
+					 , a1.lang_msg_cd
+					 , a1.lang_msg_val
+				  FROM t_lang_base_info a1
+				 WHERE 1=1
+				   AND a1.lang_cd = 'KO'
+		  	 ) b1
+		  LEFT OUTER JOIN t_lang_base_info b2
+		    ON b1.lang_msg_cd = b2.lang_msg_cd 
+		   AND b2.lang_cd = 'EN'
+		  LEFT OUTER JOIN t_lang_base_info b3
+		    ON b1.lang_msg_cd = b3.lang_msg_cd 
+		   AND b3.lang_cd = 'CN'
+		  LEFT OUTER JOIN t_lang_base_info b4
+		    ON b1.lang_msg_cd = b4.lang_msg_cd 
+		   AND b4.lang_cd = 'PL'
+		 WHERE 1=1
+		<if test='lang_cd != null and !"".equals(lang_cd)'>
+			AND b1.lang_cd = #{lang_cd}
+		</if>
+		<if test='lang_msg_cd != null and !"".equals(lang_msg_cd)'>
+		   AND b1.lang_msg_cd LIKE CONCAT('%', #{lang_msg_cd}, '%')
+		</if>
+		<if test='lang_msg_val != null and !"".equals(lang_msg_val)'>
+		   AND (b1.lang_msg_val LIKE CONCAT('%', #{lang_msg_val}, '%')
+		   	OR b2.lang_msg_val LIKE CONCAT('%', #{lang_msg_val}, '%')
+		   	OR b3.lang_msg_val LIKE CONCAT('%', #{lang_msg_val}, '%')
+		   	OR b4.lang_msg_val LIKE CONCAT('%', #{lang_msg_val}, '%')
+		   	)
+		</if>
+	</select>
+	
+	<!-- 다국어 단일 -->
+	<select id="getLang" parameterType="langBean" resultType="langBean" >
+		SELECT b1.*
+			 , b2.lang_msg_val as lang_msg_ko
+			 , b3.lang_msg_val as lang_msg_en
+			 , b4.lang_msg_val as lang_msg_cn
+			 , b5.lang_msg_val as lang_msg_pl
+		  FROM (
+				SELECT a1.lang_msg_cd
+				  FROM t_lang_base_info a1
+				  LEFT OUTER JOIN t_cm_cd a2
+					ON a1.lang_cd = a2.cd
+				   AND a2.cat_cd = 'LANG_CD'
+				 WHERE a1.lang_msg_cd = #{lang_msg_cd}
+				 LIMIT 1
+		  	 ) b1
+		  LEFT OUTER JOIN t_lang_base_info b2
+		    ON b1.lang_msg_cd = b2.lang_msg_cd
+		   AND b2.lang_cd = 'KO'
+		  LEFT OUTER JOIN t_lang_base_info b3
+		    ON b1.lang_msg_cd = b3.lang_msg_cd 
+		   AND b3.lang_cd = 'EN'
+		  LEFT OUTER JOIN t_lang_base_info b4
+		    ON b1.lang_msg_cd = b4.lang_msg_cd 
+		   AND b4.lang_cd = 'CN'
+		  LEFT OUTER JOIN t_lang_base_info b5
+		    ON b1.lang_msg_cd = b5.lang_msg_cd 
+		   AND b5.lang_cd = 'PL'
+	</select>
+	
+	<!-- 다국어 추가 -->
+	<insert id="insertLang" parameterType="langBean" useGeneratedKeys="true" keyProperty="lang_base_seq">
+		INSERT INTO t_lang_base_info
+				(lang_base_seq, lang_cd, lang_msg_cd, lang_msg_val) 
+			VALUES 
+				((select coalesce(max(lang_base_seq),0) from t_lang_base_info) + 1, 'KO', #{lang_msg_cd}, #{lang_msg_ko})
+				,((select coalesce(max(lang_base_seq),0) from t_lang_base_info) + 2, 'EN', #{lang_msg_cd}, #{lang_msg_en})
+				,((select coalesce(max(lang_base_seq),0) from t_lang_base_info) + 3, 'CN', #{lang_msg_cd}, #{lang_msg_cn})
+				,((select coalesce(max(lang_base_seq),0) from t_lang_base_info) + 4, 'PL', #{lang_msg_cd}, #{lang_msg_pl})
+	</insert>
+	
+	<!-- 다국어 수정-->
+	<update id="updateLangKO" parameterType="langBean">
+		UPDATE t_lang_base_info		
+		SET
+			lang_msg_cd 		= #{lang_msg_cd}
+			, lang_msg_val		= #{lang_msg_ko}
+		WHERE lang_cd = 'KO'
+		  AND lang_msg_cd = #{lang_msg_cd_org}
+	</update>
+	<update id="updateLangEN" parameterType="langBean">
+		UPDATE t_lang_base_info		
+		SET
+			lang_msg_cd 		= #{lang_msg_cd}
+			, lang_msg_val		= #{lang_msg_en}
+		WHERE lang_cd = 'EN'
+		  AND lang_msg_cd = #{lang_msg_cd_org}
+	</update>
+	<update id="updateLangCN" parameterType="langBean">
+		UPDATE t_lang_base_info		
+		SET
+			lang_msg_cd 		= #{lang_msg_cd}
+			, lang_msg_val		= #{lang_msg_cn}
+		WHERE lang_cd = 'CN'
+		  AND lang_msg_cd = #{lang_msg_cd_org}
+	</update>
+	<update id="updateLangPL" parameterType="langBean">
+		UPDATE t_lang_base_info		
+		SET
+			lang_msg_cd 		= #{lang_msg_cd}
+			, lang_msg_val		= #{lang_msg_pl}
+		WHERE lang_cd = 'PL'
+		  AND lang_msg_cd = #{lang_msg_cd_org}
+	</update>
+	
+	<!-- 다국어 삭제-->
+	<delete id="deleteLang" parameterType="langBean">
+		DELETE FROM t_lang_base_info
+		WHERE lang_msg_cd = #{lang_msg_cd}	
+	</delete>
+	
+</mapper>

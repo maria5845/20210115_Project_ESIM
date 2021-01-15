@@ -1,0 +1,1188 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:57 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="pmngSqlMap">
+
+	<!-- 현재 사용되는 장치 명 조회 -->
+	<select id="getPmngDvcid" resultType="String">
+		select cd_val
+		from t_cm_cd
+		where cat_cd = 'MACHINE'
+			and cd = 'DVC_ID'
+	</select>
+	
+	
+	<!-- 실시간 데이터 조회 -->
+	<select id="getRecentList" parameterType="pmngReportBean" resultType="hmap">
+		select var_id
+			, COALESCE(CAST(to_ch2(data_val::numeric) AS VARCHAR), '-') as data_val
+			, COALESCE(data_str_val, '-') as data_str_val
+		from t_cllct_recent_data
+		where 1=1 
+ 			<if test='var_id_str != null and !"".equals(var_id_str)'>
+				and var_id in (${var_id_str})
+ 			</if>
+			<if test='dvc_id != null and !"".equals(dvc_id)'>
+			 	and dvc_id LIKE CONCAT('%', #{dvc_id}, '%')
+			 </if>
+	</select>
+	
+	<!-- CTQ 차트 실시간 데이터 조회 -->
+	<select id="getCtqRecentList" parameterType="pmngReportBean" resultType="hmap">
+		select t1.var_id, t2.gubun
+			, case when t2.gubun in ('NG_CNT') then COALESCE(CAST(ROUND(t3.data_val::numeric) AS VARCHAR), '-')
+				when t2.gubun in ('NG_RATE') then COALESCE(CAST(ROUND(t3.data_val::numeric, 3) AS VARCHAR), '-')
+				when t2.gubun in ('PROPORTION') then COALESCE(CAST(ROUND(t3.data_val::numeric, 1) AS VARCHAR), '-') 
+				else COALESCE(CAST(to_ch2(t3.data_val::numeric) AS VARCHAR), '-') end as data_val
+			, t3.lot_id, t3.data_tm
+		from (
+			select 'A1U' as var_id
+			union all
+			select 'A2U' as var_id
+			union all
+			select 'A3U' as var_id
+			union all
+			select 'A4U' as var_id
+			union all
+			select 'TS_U' as var_id
+			union all
+			select 'A5U' as var_id
+			union all
+			select 'A6U' as var_id
+			union all
+			select 'A1L' as var_id
+			union all
+			select 'A2L' as var_id
+			union all
+			select 'A3L' as var_id
+			union all
+			select 'A4L' as var_id
+			union all
+			select 'TS_A' as var_id
+			union all
+			select 'TW_I' as var_id
+			union all
+			select 'TW' as var_id
+			union all
+			select 'A5L' as var_id
+			union all
+			select 'A6L' as var_id
+			union all
+			select 'TH_A' as var_id
+			union all
+			select 'SM1' as var_id
+			union all
+			select 'SM2' as var_id
+			union all
+			select 'SM3' as var_id
+			union all
+			select 'SM4' as var_id
+		) t1
+		left outer join (
+			select 'LSL' as gubun
+			union all
+			select 'TARGET' as gubun
+			union all
+			select 'USL' as gubun
+			union all
+			select 'NG_CNT' as gubun
+			union all
+			select 'NG_RATE' as gubun
+			union all
+			select 'PROPORTION' as gubun
+			union all
+			select 'MIN' as gubun
+			union all
+			select 'MEAN' as gubun
+			union all
+			select 'MAX' as gubun
+			union all
+			select 'STD' as gubun
+			union all
+			select 'CPK' as gubun
+		) t2
+		on 1=1
+		left outer join (
+			select lot_id, var_id, gubun, data_val, data_tm
+			from t_ctq_stat
+			<if test='lot_id == null or "".equals(lot_id) '>
+				where lot_id = (select data_str_val from t_cllct_recent_data where var_id = 'Lot_ID' and dvc_id = #{dvc_id} limit 1)
+			</if>
+			<if test='lot_id != null and !"".equals(lot_id)'>
+				where lot_id = #{lot_id}
+			</if>
+		) t3
+		on t1.var_id = t3.var_id
+		and t2.gubun = t3.gubun
+	</select>
+	
+	<!-- CTQ SV 중 가장 최근 값  -->
+	<select id="getCTQSvList" parameterType="pmngReportBean" resultType="hmap">
+	    select t2.var_id
+			, coalesce(t3.data_val, 0) as data_val
+				from(
+					select var_id
+					from t_var_info
+					where var_id in (${var_id_str})
+				) t2
+				left outer join (
+					select *
+					from (
+						SELECT data_val , var_id, data_tm
+							, ROW_NUMBER() OVER (PARTITION BY var_id ORDER BY data_tm DESC) AS rn 
+						FROM t_zs_raw 
+						where 1=1
+						<if test='var_id_str != null and !"".equals(var_id_str)'>
+							and var_id IN (${var_id_str})
+						</if>
+						<if test='sdate != null and !"".equals(sdate)'>
+							and data_tm BETWEEN #{sdate} AND #{edate}
+						</if>
+						<if test='lot_id != null and !"".equals(lot_id)'>
+							<!-- lot의 시작시간과 종료 시간 검색 -->
+							and data_tm between (select distinct to_char(sta_time, 'YYYYMMDDHH24MISSms')
+								from t_lot_hist where lot_id = #{lot_id} limit 1)
+								and (select distinct to_char(end_time, 'YYYYMMDDHH24MISSms')
+								from t_lot_hist where lot_id = #{lot_id} limit 1)
+						</if>	
+					) t1
+					WHERE rn = 1
+				) t3 
+				on t2.var_id = t3.var_id
+	</select>
+	
+	<!-- lsl, usl 조회한 기간안에 변경되었다면 경고창 생성 -->
+	<select id="getCheckCtqAlert" parameterType="pmngReportBean" resultType="hmap">
+		select sum(is_alert_cnt) as is_alert_cnt
+			, TO_CHAR(TO_TIMESTAMP(max(change_time), 'YYYYMMDDHH24MISSms'), 'YYYY-MM-DD HH24:mi:ss') as change_time
+		from (
+			select count(is_alert) as is_alert_cnt, max(data_tm) as change_time
+			from (
+				select 
+					case when (lead(A1U_min, 1) OVER (PARTITION BY dvc_id, A1U_min ORDER BY dvc_id, A1U_min) - A1U_min) != 0 then 'false'
+					when (lead(A2U_min, 1) OVER (PARTITION BY dvc_id, A2U_min ORDER BY dvc_id, A2U_min) - A2U_min) != 0 then 'false'
+					when (lead(A3U_min, 1) OVER (PARTITION BY dvc_id, A3U_min ORDER BY dvc_id, A3U_min) - A3U_min) != 0 then 'false'
+					when (lead(A4U_min, 1) OVER (PARTITION BY dvc_id, A4U_min ORDER BY dvc_id, A4U_min) - A4U_min) != 0 then 'false'
+					when (lead(TS_U_min, 1) OVER (PARTITION BY dvc_id, TS_U_min ORDER BY dvc_id, TS_U_min) - TS_U_min) != 0 then 'false'
+					when (lead(A5U_min, 1) OVER (PARTITION BY dvc_id, A5U_min ORDER BY dvc_id, A5U_min) - A5U_min) != 0 then 'false'
+					when (lead(A6U_min, 1) OVER (PARTITION BY dvc_id, A6U_min ORDER BY dvc_id, A6U_min) - A6U_min) != 0 then 'false'
+					when (lead(A1L_min, 1) OVER (PARTITION BY dvc_id, A1L_min ORDER BY dvc_id, A1L_min) - A1L_min) != 0 then 'false'
+					when (lead(A2L_min, 1) OVER (PARTITION BY dvc_id, A2L_min ORDER BY dvc_id, A2L_min) - A2L_min) != 0 then 'false'
+					when (lead(A3L_min, 1) OVER (PARTITION BY dvc_id, A3L_min ORDER BY dvc_id, A3L_min) - A3L_min) != 0 then 'false'
+					when (lead(A4L_min, 1) OVER (PARTITION BY dvc_id, A4L_min ORDER BY dvc_id, A4L_min) - A4L_min) != 0 then 'false'
+					when (lead(TS_A_min, 1) OVER (PARTITION BY dvc_id, TS_A_min ORDER BY dvc_id, TS_A_min) - TS_A_min) != 0 then 'false'
+					when (lead(TW_I_min, 1) OVER (PARTITION BY dvc_id, TW_I_min ORDER BY dvc_id, TW_I_min) - TW_I_min) != 0 then 'false'
+					when (lead(TW_min, 1) OVER (PARTITION BY dvc_id, TW_min ORDER BY dvc_id, TW_min) - TW_min) != 0 then 'false'
+					when (lead(A5L_min, 1) OVER (PARTITION BY dvc_id, A5L_min ORDER BY dvc_id, A5L_min) - A5L_min) != 0 then 'false'
+					when (lead(A6L_min, 1) OVER (PARTITION BY dvc_id, A6L_min ORDER BY dvc_id, A6L_min) - A6L_min) != 0 then 'false'
+					when (lead(TH_A_min, 1) OVER (PARTITION BY dvc_id, TH_A_min ORDER BY dvc_id, TH_A_min) - TH_A_min) != 0 then 'false'
+					when (lead(SM1_min, 1) OVER (PARTITION BY dvc_id, SM1_min ORDER BY dvc_id, SM1_min) - SM1_min) != 0 then 'false'
+					when (lead(SM2_min, 1) OVER (PARTITION BY dvc_id, SM2_min ORDER BY dvc_id, SM2_min) - SM2_min) != 0 then 'false'
+					when (lead(SM3_min, 1) OVER (PARTITION BY dvc_id, SM3_min ORDER BY dvc_id, SM3_min) - SM3_min) != 0 then 'false'
+					when (lead(SM4_min, 1) OVER (PARTITION BY dvc_id, SM4_min ORDER BY dvc_id, SM4_min) - SM4_min) != 0 then 'false'
+					when (lead(A1U_max, 1) OVER (PARTITION BY dvc_id, A1U_max ORDER BY dvc_id, A1U_max) - A1U_max) != 0 then 'false'
+					when (lead(A2U_max, 1) OVER (PARTITION BY dvc_id, A2U_max ORDER BY dvc_id, A2U_max) - A2U_max) != 0 then 'false'
+					when (lead(A3U_max, 1) OVER (PARTITION BY dvc_id, A3U_max ORDER BY dvc_id, A3U_max) - A3U_max) != 0 then 'false'
+					when (lead(A4U_max, 1) OVER (PARTITION BY dvc_id, A4U_max ORDER BY dvc_id, A4U_max) - A4U_max) != 0 then 'false'
+					when (lead(TS_U_max, 1) OVER (PARTITION BY dvc_id, TS_U_max ORDER BY dvc_id, TS_U_max) - TS_U_max) != 0 then 'false'
+					when (lead(A5U_max, 1) OVER (PARTITION BY dvc_id, A5U_max ORDER BY dvc_id, A5U_max) - A5U_max) != 0 then 'false'
+					when (lead(A6U_max, 1) OVER (PARTITION BY dvc_id, A6U_max ORDER BY dvc_id, A6U_max) - A6U_max) != 0 then 'false'
+					when (lead(A1L_max, 1) OVER (PARTITION BY dvc_id, A1L_max ORDER BY dvc_id, A1L_max) - A1L_max) != 0 then 'false'
+					when (lead(A2L_max, 1) OVER (PARTITION BY dvc_id, A2L_max ORDER BY dvc_id, A2L_max) - A2L_max) != 0 then 'false'
+					when (lead(A3L_max, 1) OVER (PARTITION BY dvc_id, A3L_max ORDER BY dvc_id, A3L_max) - A3L_max) != 0 then 'false'
+					when (lead(A4L_max, 1) OVER (PARTITION BY dvc_id, A4L_max ORDER BY dvc_id, A4L_max) - A4L_max) != 0 then 'false'
+					when (lead(TS_A_max, 1) OVER (PARTITION BY dvc_id, TS_A_max ORDER BY dvc_id, TS_A_max) - TS_A_max) != 0 then 'false'
+					when (lead(TW_I_max, 1) OVER (PARTITION BY dvc_id, TW_I_max ORDER BY dvc_id, TW_I_max) - TW_I_max) != 0 then 'false'
+					when (lead(TW_max, 1) OVER (PARTITION BY dvc_id, TW_max ORDER BY dvc_id, TW_max) - TW_max) != 0 then 'false'
+					when (lead(A5L_max, 1) OVER (PARTITION BY dvc_id, A5L_max ORDER BY dvc_id, A5L_max) - A5L_max) != 0 then 'false'
+					when (lead(A6L_max, 1) OVER (PARTITION BY dvc_id, A6L_max ORDER BY dvc_id, A6L_max) - A6L_max) != 0 then 'false'
+					when (lead(TH_A_max, 1) OVER (PARTITION BY dvc_id, TH_A_max ORDER BY dvc_id, TH_A_max) - TH_A_max) != 0 then 'false'
+					when (lead(SM1_max, 1) OVER (PARTITION BY dvc_id, SM1_max ORDER BY dvc_id, SM1_max) - SM1_max) != 0 then 'false'
+					when (lead(SM2_max, 1) OVER (PARTITION BY dvc_id, SM2_max ORDER BY dvc_id, SM2_max) - SM2_max) != 0 then 'false'
+					when (lead(SM3_max, 1) OVER (PARTITION BY dvc_id, SM3_max ORDER BY dvc_id, SM3_max) - SM3_max) != 0 then 'false'
+					when (lead(SM4_max, 1) OVER (PARTITION BY dvc_id, SM4_max ORDER BY dvc_id, SM4_max) - SM4_max) != 0 then 'false'
+						else true
+						end as is_alert
+						, data_tm
+				from t_vision_raw
+				where 1=1
+					and data_tm BETWEEN #{sdate} AND #{edate}
+			) t1
+			where is_alert != true
+		) t3
+	</select>
+	
+	<!-- SV 색상 기준 조회 -->
+	<select id="getSVColorList" parameterType="pmngReportBean" resultType="hmap">
+		select t1.var_id
+			, round(t2.data_val::numeric, 2) as data_val
+			, coalesce(change_cnt, 0) as change_cnt
+			, case  when green_min is null and green_max &gt;= coalesce(change_cnt, 0) then 'green' 
+				when green_min &lt;= coalesce(change_cnt, 0) and green_max &gt;= coalesce(change_cnt, 0) then 'green' 
+				when yellow_min &lt;= coalesce(change_cnt, 0) and yellow_max &gt;= coalesce(change_cnt, 0) then 'yellow' 
+				else 'red' 
+				end as color_class
+		from t_var_rule_info t1
+		left outer join t_cllct_recent_data t2
+		on t1.var_id = t2.var_id
+		left outer join (
+			select count(*) as change_cnt, var_id
+			from t_var_change_history
+			where 1=1
+				and dvc_id = #{dvc_id}
+				and last_mdfy_dt between (select sta_time 
+											from t_lot_hist 
+											where lot_id = (select data_str_val as data_val
+															from t_cllct_recent_data
+															where var_id = 'Lot_ID' and dvc_id = #{dvc_id} limit 1) limit 1) 
+					and (select end_time 
+						from t_lot_hist
+						where lot_id = (select data_str_val as data_val
+										from t_cllct_recent_data
+										where var_id = 'Lot_ID'and dvc_id = #{dvc_id} limit 1) limit 1)
+			group by var_id
+		) t3
+		on t1.var_id = t3.var_id
+		where dvc_id = #{dvc_id} and set_type = 'SV'
+	</select>
+
+	<!-- CTQ 색상 기준 조회 -->
+	<select id="getCTQColorList" parameterType="pmngReportBean" resultType="hmap">
+		select t1.var_id, data_val, lower(gubun) as gubun,
+			case when green_min &lt;= data_val and data_val &lt; green_max then 'green'
+			when green_min is null and data_val &lt; green_max then 'green'
+			when yellow_min &lt;= data_val and data_val &lt; yellow_max then 'yellow'
+			when red_min &lt; data_val and data_val &lt; red_max then 'red'
+			when red_max is null and data_val &gt; red_min then 'red'
+			else 'red' end as color_class
+		from (
+			select lot_id, var_id, gubun, data_val, data_tm
+			from t_ctq_stat
+			where lot_id = (select data_str_val from t_cllct_recent_data where var_id = 'Lot_ID' and dvc_id = #{dvc_id} limit 1)
+		) t1
+			left outer join t_var_rule_info t2
+		on t1.gubun = t2.var_id
+		where gubun in ('NG_RATE')
+		union all
+		select t1.var_id, data_val, lower(gubun) as gubun,
+			case when green_min &lt;= data_val and data_val &lt; green_max then 'green'
+			when green_min is null and data_val &lt; green_max then 'green'
+			when yellow_min &lt;= data_val and data_val &lt; yellow_max then 'yellow'
+			when red_min &lt; data_val and data_val &lt; red_max then 'red'
+			when red_max is null and data_val &gt; red_min then 'red'
+			else 'red' end as color_class
+		from (
+			select lot_id, var_id, gubun, data_val, data_tm
+			from t_ctq_stat
+			where lot_id = (select data_str_val from t_cllct_recent_data where var_id = 'Lot_ID' and dvc_id = #{dvc_id} limit 1)
+		) t1
+			left outer join t_var_rule_info t2
+		on t1.gubun = t2.var_id
+		where gubun in ('CPK')
+	</select>
+	
+	<!-- PV 색상 기준 조회 -->
+	<select id="getPVColorList" parameterType="pmngReportBean" resultType="hmap">
+		select t1.var_id, t3.data_val, t2.data_val as sv_data
+			, t2.green_min, t2.green_max, t2.yellow_min, t2.yellow_max
+			, case when t2.green_min is null and t2.green_max &lt;= t3.data_val then 'green' 
+				when t2.green_min &lt;= t3.data_val and t2.green_max &gt;= t3.data_val then 'green' 
+				when t2.yellow_min &lt;= t3.data_val and t2.yellow_max &gt;= t3.data_val then 'yellow' 
+				else 'red' 
+				end as color_class
+		from t_var_rule_info t1
+		left outer join (
+			select t1.based_var_id, data_val
+				, t2.data_val - (t2.data_val * t1.green_max/100 ) as green_min
+				, t2.data_val + (t2.data_val * t1.green_max/100 ) as green_max
+				, t2.data_val - (t2.data_val * t1.yellow_max/100 ) as yellow_min
+				, t2.data_val + (t2.data_val * t1.yellow_max/100 ) as yellow_max
+			from t_var_rule_info t1
+			left outer join t_cllct_recent_data t2
+			on t1.based_var_id = t2.var_id
+			where set_type = 'PV'
+				and dvc_id = #{dvc_id}
+		) t2
+		on t1.based_var_id = t2.based_var_id
+		left outer join t_cllct_recent_data t3
+		on t1.var_id = t3.var_id
+		where set_type = 'PV'
+	</select>
+	
+	<!-- Lot 리스트  -->
+	<select id="getLotList" parameterType="pmngReportBean" resultType="hmap">
+		select lot_id
+		from t_lot_hist 
+		where 1=1
+			<if test='sdate != null and !"".equals(sdate) and edate != null and !"".equals(edate)'>
+				 and sta_time 
+				 	between to_timestamp(#{sdate}, 'YYYYMMDDHH24MISS') and to_timestamp(#{edate}, 'YYYYMMDDHH24MISS')
+			 </if>
+			<if test='sdate != null and !"".equals(sdate) and edate != null and !"".equals(edate)'>
+				 or end_time 
+				 	between to_timestamp(#{sdate}, 'YYYYMMDDHH24MISS') and to_timestamp(#{edate}, 'YYYYMMDDHH24MISS')
+			 </if>
+	</select>
+	
+	<!-- SV 변경 이력에 대한 리스트  -->
+	<select id="getSVChangeHistoryList" parameterType="pmngReportBean" resultType="pmngReportBean">
+		select b1.*
+			, row_number() over( order by b1.dvc_id, b1.var_id asc) as rn
+		from (		
+			select row_number() over(partition by t1.dvc_id, t1.var_id order by t2.last_mdfy_dt desc) as rnum 
+				, t2.history_seq
+				, t1.dvc_id
+				, t1.var_id
+				, t1.change_cnt
+				, t2.curr_data_val as data_val
+				, TO_CHAR(t2.last_mdfy_dt, 'YYYY-MM-DD HH24:mi:ss') as last_mdfy_dt
+				<if test='var_id != null and !"".equals(var_id)'>
+					, case when t1.var_id = #{var_id} then 'true' else 'false' end AS checked
+				</if>
+				<if test='"".equals(var_id)'>
+					, 'false' AS checked
+				</if>
+			from (
+				select a1.dvc_id, a1.var_id
+				 , count(a1.var_id) as change_cnt
+				from t_var_change_history a1
+				where 1=1
+					and dvc_id = #{dvc_id}
+					 and last_mdfy_dt 
+					 	between (#{sdate}||' '||#{stime})::timestamp and (#{edate}||' '||#{etime})::timestamp
+				 	<if test='var_id != null and !"".equals(var_id)'>
+					 	and var_id ILIKE CONCAT('%', #{var_id}, '%')
+					</if>
+				group by a1.dvc_id, a1.var_id
+			) t1
+			left outer join (
+			 	select last_mdfy_dt, var_id, dvc_id, curr_data_val, history_seq
+				 from t_var_change_history
+				 where (dvc_id, var_id, last_mdfy_dt) in (
+					select dvc_id, var_id, max(last_mdfy_dt)
+					from t_var_change_history
+					where 1=1
+					and dvc_id = #{dvc_id}
+					and last_mdfy_dt 
+					 	between (#{sdate}||' '||#{stime})::timestamp and (#{edate}||' '||#{etime})::timestamp
+					 <if test='var_id != null and !"".equals(var_id)'>
+					 	and var_id ILIKE CONCAT('%', #{var_id}, '%')
+					</if>
+					 group by dvc_id, var_id
+				 )
+			) t2
+			on t1.var_id = t2.var_id
+			and t1.dvc_id = t2.dvc_id
+			where 1=1
+		)b1
+		where b1.rnum = 1
+		order by checked desc, var_id
+	</select>
+	
+	<!-- SV 변경 이력에 대한 디테일 리스트  -->
+	<select id="getSVChangeHistoryDetailList" parameterType="pmngReportBean" resultType="pmngReportBean">
+		select history_seq, dvc_id, var_id, curr_data_val, pre_data_val, mdfy_by, change_reason
+			, TO_CHAR(last_mdfy_dt, 'YYYY-MM-DD HH24:mi:ss') as last_mdfy_dt
+		from t_var_change_history
+		where 1=1 
+			<if test='var_id_str != null and !"".equals(var_id_str)'>
+				and var_id in (${var_id_str})
+			</if>
+			<if test='history_seq != null and !"".equals(history_seq)'>
+				and history_seq = #{history_seq}
+			</if>
+			<if test='sdate != null and !"".equals(sdate) and edate != null and !"".equals(edate)'>
+            	and last_mdfy_dt between to_timestamp(#{sdate}, 'YYYYMMDDHH24MISS') and to_timestamp(#{edate}, 'YYYYMMDDHH24MISS')
+            </if>
+            <if test='dvc_id != null and !"".equals(dvc_id)'>
+		      	and dvc_id = #{dvc_id}
+			</if>
+        order by var_id, last_mdfy_dt desc
+	</select>
+	
+	<!-- SV 변경 업데이트 -->
+	<update id="updateSvHist" parameterType="pmngReportBean" >
+		UPDATE t_var_change_history
+		SET mdfy_by= #{login_user_id}
+			, change_reason= #{change_reason}
+		where history_seq = #{history_seq}
+	</update>
+	
+    <!-- SV 변경 이력에 대한 디테일 리스트  -->
+	<select id="getSVChgHisChartList" parameterType="pmngReportBean" resultType="hmap">
+	    select t1.data_tm
+			, t2.var_id
+			, t3.curr_data_val as data_val
+				from (
+					select 
+						TO_CHAR(generate_series(TO_TIMESTAMP(#{sdate}, 'YYYYMMDDHH24MISS'), TO_TIMESTAMP(#{edate}, 'YYYYMMDDHH24MISS'), interval '1 minute'), 'YYYY-MM-DD HH24:mi') as data_tm
+				) t1
+				left outer join(
+					select var_id
+					from t_var_info
+					where var_id in (${var_id_str})
+				) t2
+				on 1=1
+				left outer join (
+				<!-- t_var_change_history에서 데이터를 가져온다면 -->
+				select TO_CHAR(last_mdfy_dt, 'YYYY-MM-DD HH24:mi') as last_mdfy_dt 
+						, curr_data_val 
+ 						, var_id 
+ 					from t_var_change_history 
+<!-- 						select -->
+<!-- 							var_id, -->
+<!-- 							dvc_id, -->
+<!-- 							data_val, -->
+<!-- 							TO_CHAR(TO_TIMESTAMP(data_tm, 'YYYYMMDDHH24MISSms'), 'YYYY-MM-DD HH24:mi') as data_tm -->
+<!-- 						from t_zs_raw -->
+						where 1=1
+						<if test='dvc_id != null and !"".equals(dvc_id)'>
+							and dvc_id = #{dvc_id}
+						</if>
+						<if test='var_id_str != null and !"".equals(var_id_str)'>
+							and var_id IN (${var_id_str})
+						</if>
+						<if test='sdate != null and !"".equals(sdate)'>
+							and last_mdfy_dt BETWEEN to_timestamp(#{sdate}, 'YYYYMMDDHH24MISS') AND to_timestamp( #{edate}, 'YYYYMMDDHH24MISS')
+						</if>
+						<if test='lot_id != null and !"".equals(lot_id)'>
+							<!-- lot의 시작시간과 종료 시간 검색 -->
+							and last_mdfy_dt between (select distinct to_char(sta_time, 'YYYYMMDDHH24MISSms')
+								from t_lot_hist where lot_id = #{lot_id} limit 1)
+								and (select distinct to_char(end_time, 'YYYYMMDDHH24MISSms')
+								from t_lot_hist where lot_id = #{lot_id} limit 1)
+						</if>
+				) t3
+				on t1.data_tm = t3.last_mdfy_dt
+				and t2.var_id = t3.var_id
+			order by t2.var_id, t1.data_tm
+	</select>
+	
+	<!-- 파라미터 트리 조회 -->
+	<select id="getParaTreeList" parameterType="pmngReportBean" resultType="hmap">
+		WITH RECURSIVE tree_query (
+			tree_seq, p_tree_seq, tree_nm, depth_ord, sort, tree_desc, level, dvc_seq, tree_kd, use_yn, gen_by, gen_dt, mdfy_by, mdfy_dt
+		) AS (
+			SELECT
+				t1.tree_seq
+				, t1.p_tree_seq
+				, t1.tree_nm
+				, t1.depth_ord
+				, TO_CHAR( CAST( (t1.depth_ord) AS int8), '09999999') AS sort
+				, t1.tree_desc
+				, 1 AS level
+				, t1.dvc_seq
+				, t1.tree_kd
+				, t1.use_yn
+				, t1.gen_by, t1.gen_dt, t1.mdfy_by, t1.mdfy_dt
+			FROM t_tree_info t1
+			WHERE t1.tree_nm = 'CMI PARA TREND TREE'
+				and t1.use_yn = 'Y'
+		    UNION ALL
+		    SELECT
+				t2.tree_seq
+				, t2.p_tree_seq
+				, t2.tree_nm
+				, t2.depth_ord
+				, CONCAT(t3.sort, ' > ', TO_CHAR( CAST( (t2.tree_seq ) AS int8), '09999999')) AS sort
+				, t2.tree_desc
+				, t3.level +1
+				, t2.dvc_seq
+				, t2.tree_kd
+				, t2.use_yn
+				, t2.gen_by, t2.gen_dt, t2.mdfy_by, t2.mdfy_dt
+			FROM t_tree_info t2
+			INNER JOIN tree_query t3 
+				ON t2.p_tree_seq = t3.tree_seq
+			where t2.use_yn = 'Y'
+		)
+		SELECT
+			a.tree_seq, a.tree_seq as id
+			, a.tree_nm
+			, coalesce(b.dvc_nm, a.tree_nm) as text
+			, a.p_tree_seq
+			, a.tree_nm
+			, a.tree_desc
+			, a.depth_ord
+			, a.sort
+			, a.dvc_seq
+		 	, a.tree_kd
+			, (SELECT cd_val FROM t_cm_cd where cat_cd = 'TREE_KD' and cd = a.tree_kd) as tree_kd_nm
+			, a.use_yn
+			, b.dvc_id
+			, true as expanded
+			, a.level as tree_level
+			, 0 as checked
+		FROM tree_query a
+		LEFT OUTER JOIN t_dvc_info b
+			ON a.dvc_seq = b.dvc_seq
+		WHERE 1=1
+		ORDER BY a.sort, a.tree_seq asc
+	</select>
+	
+	<!-- CTQ 파라미터 트리 조회 -->
+	<select id="getCTQTreeList" parameterType="pmngReportBean" resultType="hmap">
+		WITH RECURSIVE tree_query (
+			tree_seq, p_tree_seq, tree_nm, depth_ord, sort, tree_desc, level, dvc_seq, tree_kd, use_yn, gen_by, gen_dt, mdfy_by, mdfy_dt
+		) AS (
+			SELECT
+				t1.tree_seq
+				, t1.p_tree_seq
+				, t1.tree_nm
+				, t1.depth_ord
+				, TO_CHAR( CAST( (t1.depth_ord) AS int8), '09999999') AS sort
+				, t1.tree_desc
+				, 1 AS level
+				, t1.dvc_seq
+				, t1.tree_kd
+				, t1.use_yn
+				, t1.gen_by, t1.gen_dt, t1.mdfy_by, t1.mdfy_dt
+			FROM t_tree_info t1
+			WHERE t1.tree_nm = 'Position CTQ'
+				and t1.use_yn = 'Y'
+		    UNION ALL
+		    SELECT
+				t2.tree_seq
+				, t2.p_tree_seq
+				, t2.tree_nm
+				, t2.depth_ord
+				, CONCAT(t3.sort, ' > ', TO_CHAR( CAST( (t2.tree_seq ) AS int8), '09999999')) AS sort
+				, t2.tree_desc
+				, t3.level +1
+				, t2.dvc_seq
+				, t2.tree_kd
+				, t2.use_yn
+				, t2.gen_by, t2.gen_dt, t2.mdfy_by, t2.mdfy_dt
+			FROM t_tree_info t2
+			INNER JOIN tree_query t3 
+				ON t2.p_tree_seq = t3.tree_seq
+			where t2.use_yn = 'Y'
+		)
+		SELECT
+			a.tree_seq, a.tree_seq as id
+			, a.tree_nm
+			, coalesce(b.dvc_nm, a.tree_nm) as text
+			, a.p_tree_seq
+			, a.tree_nm
+			, a.tree_desc
+			, a.depth_ord
+			, a.sort
+			, a.dvc_seq
+		 	, a.tree_kd
+			, (SELECT cd_val FROM t_cm_cd where cat_cd = 'TREE_KD' and cd = a.tree_kd) as tree_kd_nm
+			, a.use_yn
+			, b.dvc_id
+			, true as expanded
+			, a.level as tree_level
+			, 0 as checked
+		FROM tree_query a
+		LEFT OUTER JOIN t_dvc_info b
+			ON a.dvc_seq = b.dvc_seq
+		WHERE 1=1
+		ORDER BY a.sort, a.tree_seq asc
+	</select>
+	
+	<!-- Raw 테이블 조회  -->
+	<select id="getZsRawList" parameterType="pmngReportBean" resultType="hmap">
+	    select t1.data_tm
+			, t4.tree_nm as var_id
+			, coalesce(t3.data_val, 0) as data_val
+				from (
+					select 
+						TO_CHAR(generate_series(TO_TIMESTAMP(#{sdate}, 'YYYYMMDDHH24MISS'), TO_TIMESTAMP(#{edate}, 'YYYYMMDDHH24MISS'), interval '1 second'), 'YYYY-MM-DD HH24:mi:ss') as data_tm
+				) t1
+				left outer join(
+					select var_id
+					from t_var_info
+					where var_id in (${var_id_str})
+				) t2
+				on 1=1
+				left outer join (
+						select
+							var_id,
+							dvc_id,
+							data_val,
+							TO_CHAR(TO_TIMESTAMP(data_tm, 'YYYYMMDDHH24MISSms'), 'YYYY-MM-DD HH24:mi:ss') as data_tm
+						from t_zs_raw
+						where 1=1
+						<if test='st_md != null and !"".equals(st_md) and et_md != null and !"".equals(et_md)'>
+							and t_md BETWEEN #{st_md} AND #{et_md}
+						</if>
+						<if test='var_id_str != null and !"".equals(var_id_str)'>
+							and var_id IN (${var_id_str})
+						</if>
+<!-- 						파라미터 화면에 부하율에서 사용되는 변수가 추가 되어 주석처리 -->
+<!-- 						<if test='dvc_id != null and !"".equals(dvc_id)'> -->
+<!-- 					      	and dvc_id = #{dvc_id} -->
+<!-- 						</if> -->
+						<if test='sdate != null and !"".equals(sdate)'>
+							and data_tm BETWEEN #{sdate} AND #{edate}
+						</if>
+				) t3
+					on t1.data_tm = t3.data_tm
+					and t2.var_id = t3.var_id
+				left outer join t_tree_info t4
+					on t2.var_id = t4.tree_desc
+				where t4.use_yn = 'Y'
+			order by t2.var_id, t1.data_tm
+	</select>
+	
+	<!-- CTQ raw 조회 -->
+  	<select id="getCtqRawList" parameterType="pmngReportBean" resultType="hmap">
+           SELECT to_char(TO_TIMESTAMP(t1.data_tm, 'YYYYMMDDHH24MISS'), 'YYYY-MM-DD HH24:mi:ss') as data_tm
+               , vision_raw_seq, lot_id, position_rf, final_result, insp_idx
+               ${varIdQuery}
+           from (
+               select 
+                   TO_CHAR(generate_series(TO_TIMESTAMP(#{sdate}||#{stime}, 'YYYYMMDDHH24MISS'), TO_TIMESTAMP(#{edate}||#{etime}, 'YYYYMMDDHH24MISS'), interval '1 second'), 'YYYYMMDDHH24miss') as data_tm
+           ) t1
+           left outer join (
+               SELECT vision_raw_seq, TO_CHAR(TO_TIMESTAMP(data_tm, 'YYYYMMDDHH24MISSms'), 'YYYYMMDDHH24MISS') as data_tm
+               , dvc_id, lot_id, position_rf, final_result, insp_idx, t_md
+               ${varIdQuery}
+               FROM t_vision_raw
+               where 1=1
+                   <!-- cmi 비전은 Vision으로 수집됨 -->
+                   and dvc_id = 'Vision'
+                   <if test='sdate != null and !"".equals(edate)'>
+                       and data_tm between #{sdate}||#{stime} AND #{edate}||#{etime}
+                   </if>
+                   <if test='lot_id != null and !"".equals(lot_id)'>
+                       and lot_id = #{lot_id}
+                   </if>
+           )t2
+           on t1.data_tm = t2.data_tm
+           order by data_tm asc
+    </select>
+	
+	<!-- 비전 이미지 조회시에 위치 조회 -->
+	<select id="getVisionPositionNum" parameterType="pmngReportBean" resultType="hmap">
+		select ${folder_nm}
+		from t_vision_raw
+		where 1=1 
+			<!-- cmi 비전은 Vision으로 수집됨 -->
+			and dvc_id = 'Vision'
+		<if test='sdate != null and !"".equals(edate)'>
+			and data_tm like #{sdate}||#{stime} ||'%'
+		</if>
+		limit 1
+	</select>
+	
+	<!-- ctq 리스트 조회 -->
+	<select id="getCtqList" parameterType="pmngReportBean" resultType="hmap">
+		select *
+			, case when var_id in (${var_id_str}) then 'true' else 'false' end as checked
+		from t_ctq_var_info
+		where var_gr = 'CTQ'
+			and dvc_id = #{dvc_id}
+		order by var_id
+	</select>
+	
+	<!-- 사용자별로 설정된 ctq 리스트 조회 -->
+	<select id="getCtqJsonById" parameterType="pmngReportBean" resultType="hmap">
+		select chart_jsn
+		from t_set_ctq
+		where user_id = #{login_user_id}
+	</select>
+	
+	<!-- 사용자별로 설정된 ctq 업서트 쿼리 -->
+	<select id="upsertCtqJsonById" parameterType="pmngReportBean">
+		INSERT INTO t_set_ctq (user_id, chart_jsn)
+		VALUES ('${login_user_id}', '${chart_jsn}') ON
+		CONFLICT (user_id) DO
+		UPDATE
+		SET
+			chart_jsn = EXCLUDED.chart_jsn
+	</select>
+	
+	
+<!-- 	<select id="getzsDvcStatus" parameterType="pmngReportBean" resultType="hmap"> -->
+<!-- 		select t2.var_id, t3.dvc_id -->
+<!-- 			, case when (sum(data_val)/count(data_val)) = 1 then 1 else 0 end as data_val -->
+<!-- 			, t1.data_tm -->
+<!-- 		from ( -->
+<!-- 				select  -->
+<!-- 				TO_CHAR(generate_series(TO_TIMESTAMP(#{sdate}, 'YYYYMMDDHH24MISS'), TO_TIMESTAMP(#{edate}, 'YYYYMMDDHH24MISS'), interval '1 second'), 'YYYY-MM-DD HH24:mi') as data_tm -->
+<!-- 			) t1 -->
+<!-- 		left outer join( -->
+<!-- 			select var_id -->
+<!-- 			from t_var_info -->
+<!-- 			where var_id in ('${var_id}') -->
+<!-- 		) t2 -->
+<!-- 		on 1=1 -->
+<!-- 		left outer join ( -->
+<!-- 			select dvc_id -->
+<!-- 				, var_id -->
+<!-- 				, TO_CHAR(TO_TIMESTAMP(SUBSTRING(data_tm, 1, 14), 'yyyymmddHH24miss'), 'yyyy-mm-dd HH24:mi') as data_tm -->
+<!-- 				, t_md -->
+<!-- 				, data_val as or_val -->
+<!-- 				, case when data_val in (0,1,2,4,8) then data_val else 1 end as data_val -->
+<!-- 			from t_zs_raw -->
+<!-- 			where 1=1 -->
+<!-- 				<if test='st_md != null and !"".equals(st_md) and et_md != null and !"".equals(et_md)'> -->
+<!-- 					and t_md BETWEEN #{st_md} AND #{et_md} -->
+<!-- 				</if> -->
+<!-- 				<if test='var_id != null and !"".equals(var_id)'> -->
+<!-- 					and var_id = #{var_id} -->
+<!-- 				</if> -->
+<!-- 				<if test='dvc_id != null and !"".equals(dvc_id)'> -->
+<!-- 					and dvc_id = #{dvc_id} -->
+<!-- 				</if> -->
+<!-- 				and data_tm BETWEEN #{sdate} AND #{edate} -->
+<!--         ) t3 -->
+<!--         on t1.data_tm = t3.data_tm -->
+<!-- 		and t2.var_id = t3.var_id -->
+<!-- 		group by t1.data_tm, t3.dvc_id, t2.var_id -->
+<!-- 	</select> -->
+	
+	<!-- 메인화면의 변수별 룰 조회 -->
+	<select id="getVarRuleList" parameterType="pmngReportBean" resultType="hmap">
+		SELECT var_id
+			, coalesce(based_var_id, '-') as based_var_id
+			, coalesce(set_type, '-') as set_type
+			, green_min
+			, green_max
+			, yellow_min
+			, yellow_max
+			, red_min
+			, red_max
+			, rule_seq
+		FROM t_var_rule_info
+		where 1=1
+			<if test='var_id != null and !"".equals(var_id)'>
+				and var_id ilike CONCAT('%', #{var_id}, '%')  
+			</if>
+			<if test='based_var_id != null and !"".equals(based_var_id) and !"-".equals(based_var_id)'>
+				and based_var_id ilike CONCAT('%', #{based_var_id}, '%')  
+			</if>
+			<if test='set_type != null and !"".equals(set_type)'>
+				and set_type = #{set_type}
+			</if>
+	</select>
+	
+	<!-- seq를 통한 셋팅값 가지고 오기 -->
+	<select id="getVarRuleDetail" parameterType="pmngReportBean" resultType="hmap">
+		SELECT var_id
+			, coalesce(based_var_id, '-') as based_var_id
+			, coalesce(set_type, '-') as set_type
+			, green_min
+			, green_max
+			, yellow_min
+			, yellow_max
+			, red_min
+			, red_max
+			, rule_seq
+		FROM t_var_rule_info
+		where 1=1
+		and rule_seq = #{rule_seq}
+	</select>
+	
+	<!-- 변수룰 insert -->
+	<insert id="insertVarRuleInfo" parameterType="pmngReportBean">
+		INSERT INTO t_var_rule_info (
+				var_id
+				, set_type
+				, green_min
+				, green_max
+				, yellow_min
+				, yellow_max
+				, red_min
+				, red_max
+				, based_var_id
+				, unit
+				, rule_seq
+			)
+			VALUES (
+				#{var_id}
+				, #{set_type}
+				, #{green_min}
+				, #{green_max}
+				, #{yellow_min}
+				, #{yellow_max}
+				, #{red_min}
+				, #{red_max}
+				, #{based_var_id}
+				, #{unit}
+				, (select coalesce(max(rule_seq), 0)+1 as rule_seq from t_var_rule_info)
+		) 
+	</insert>
+	
+	<!-- 변수룰 업데이트 -->
+	<update id="updateVarRuleInfo" parameterType="pmngReportBean">
+		UPDATE t_var_rule_info
+		SET green_max= #{green_max}
+			, yellow_min= #{yellow_min}
+			, yellow_max= #{yellow_max}
+			, red_min= #{red_min}
+			<if test='!"".equals(green_min)'>
+				, green_min= #{green_min}
+			</if>
+			<if test='!"".equals(red_max)'>
+				, red_max= #{red_max}
+			</if>
+			<if test='based_var_id != null and !"".equals(based_var_id)'>
+				, based_var_id= #{based_var_id}
+			</if>
+			<if test='var_id != null and !"".equals(var_id)'>
+				, var_id= #{var_id}
+			</if>
+		where rule_seq=#{rule_seq}
+	</update>
+	
+	<!-- 변수룰 삭제 -->
+	<delete id="deleteVarRuleInfo" parameterType="pmngReportBean">
+		DELETE FROM t_var_rule_info
+		where rule_seq=#{rule_seq}
+	</delete>
+	
+	<!-- 변수 조회 -->
+	<select id="getVariable" parameterType="pmngReportBean" resultType="hmap">
+		select t1.var_seq
+			 , t1.var_id
+			 , t1.var_nm
+		from t_var_info t1
+		order by var_id
+	</select>
+	
+	<!-- SV 변수 조회 -->
+	<select id="getSVVariable" parameterType="pmngReportBean" resultType="hmap">
+		select t1.var_seq
+			 , t1.var_id
+			 , t1.var_nm
+		from t_var_info t1
+		where use_yn = 'Y'
+    		and sv_yn = 'Y'
+		order by var_id
+	</select>
+	
+	<!-- PV 변수 조회 -->
+	<select id="getPVVariable" parameterType="pmngReportBean" resultType="hmap">
+		select t1.var_seq
+			 , t1.var_id
+			 , t1.var_nm
+		from t_var_info t1
+		where use_yn = 'Y'
+    		and sv_yn = 'N'
+		order by var_id
+	</select>
+	
+	
+	<!-- 트렌드 화면의 알람 조회 -->
+	<select id="getTrendAlarmList" parameterType="pmngReportBean" resultType="hmap">
+		select TO_CHAR(t1.data_tm, 'YYYY-MM-DD HH24:mi:ss') as data_tm
+			, t2.var_gr
+			, t3.var_id
+			, t3.start_dt
+			, t3.end_dt
+			, case when t3.data_val is not null then 1 else 0 end as data_val
+			, trouble_cd, loss_detail_cd
+			, to_char(t3.end_dt - t3.start_dt, 'HH24:mi:ss' ) as diff_days
+		from (
+			select 
+				TO_CHAR(generate_series(TO_TIMESTAMP(#{sdate}, 'YYYYMMDDHH24MISS'), TO_TIMESTAMP(#{edate}, 'YYYYMMDDHH24MISS'), interval '1 second'), 'YYYY-MM-DD HH24:mi:ss')::timestamp as data_tm
+		) t1
+		left outer join (
+			select 'BM' as var_gr
+			union all
+			select'Material Replacement' as var_gr
+			union all
+			select'No Buffer' as var_gr
+			union all
+			select'PD' as var_gr
+			union all
+			select'User Stop' as var_gr
+		) t2
+		on 1=1
+		left outer join (
+			select t1.var_id
+					, t3.var_gr
+					, t1.start_dt
+					, t1.end_dt
+					, alarm_data_val as data_val
+					, TO_CHAR(generate_series(start_dt, end_dt, interval '1 second'), 'YYYY-MM-DD HH24:mi:ss')::timestamp as gen_dt
+					, trouble_cd, loss_detail_cd
+			from t_alarm_plc_list t1
+			left outer join t_var_info t2
+				on t1.var_id = t2.var_id
+			left outer join t_alarm_trouble_info t3
+				on t1.var_id = t3.var_id
+				and t1.alarm_data_val = t3.alarm_cd
+			where t1.var_id in ('Alarm_Code', 'Trouble_Code')
+		) t3
+		on t1.data_tm = t3.gen_dt
+		and t2.var_gr = t3.var_gr
+	</select>
+	
+	<!-- 트렌드 화면의 알람 상세 조회 -->
+	<select id="getTrendAlarmDetail" parameterType="pmngReportBean" resultType="hmap">
+		select *
+		from (
+			select t1.var_id
+					, t3.var_gr
+					, TO_CHAR(t1.start_dt , 'YYYY-MM-DD HH24:mi:ss') as start_dt
+					, TO_CHAR(t1.end_dt , 'YYYY-MM-DD HH24:mi:ss') as end_dt
+					, to_char(t1.end_dt - t1.start_dt, 'HH24:mi:ss' ) as diff_days
+					, alarm_data_val as data_val
+					, TO_CHAR(generate_series(start_dt, end_dt, interval '1 second')::timestamp , 'YYYY-MM-DD HH24:mi:ss') as g_gen_dt
+					, coalesce(trouble_cd, '-') as trouble_cd, coalesce(loss_detail_cd, '-') as loss_detail_cd
+			from t_alarm_plc_list t1
+			left outer join t_var_info t2
+				on t1.var_id = t2.var_id
+			left outer join t_alarm_trouble_info t3
+				on t1.var_id = t3.var_id
+				and t1.alarm_data_val = t3.alarm_cd
+			where t3.var_gr in ('BM', 'Material Replacement', 'No Buffer', 'PD', 'User Stop')
+		) t1
+		where g_gen_dt = #{sdate} and var_gr = #{var_gr}
+	</select>
+	
+	<!-- raw 엑셀 조회 -->
+	<select id="getZsRawExcel" parameterType="hmap" resultType="hmap">
+		select row_number() over(order by to_char(to_timestamp(b1.data_tm, 'YYYYmmddHH24missms'), 'yyyy-mm-dd HH24:mi:ss:ms') asc) rn
+	          , to_char(to_timestamp(b1.data_tm, 'YYYYmmddHH24missms'), 'yyyy-mm-dd HH24:mi:ss:ms') as data_tm
+	          , b1.dvc_id, b1.dvc_nm
+	         <foreach collection="var_id_str" item="item">
+	            , avg(case when b1.var_id = '${item}' then b1.data_val end) as "${item}"
+	         </foreach> 
+	        from (
+	            select a3.data_tm
+	                , a1.dvc_id, a1.dvc_nm
+	                , a2.var_id, a2.var_nm
+	                , a3.data_val
+	              from t_dvc_info a1
+	             inner join (
+	                  select var_id, var_nm 
+	                    from t_var_info
+	                   where 1=1
+	                   and var_id in
+	                     <foreach collection="var_id_str" item="item" open="(" close=")" separator=",">
+                      	  '${item}'
+                     	</foreach> 
+	                ) a2
+	               on 1=1
+	              left outer join t_zs_raw a3
+	                on a1.dvc_id = a3.dvc_id
+	               and a2.var_id = a3.var_id
+	             where 1=1
+	                   and a1.dvc_id = #{dvc_id}
+	               and a3.t_md between #{st_md} and #{et_md}
+	               and a3.data_tm between #{sdate} and #{edate}
+	          ) b1
+	       group by data_tm, b1.dvc_id, b1.dvc_nm
+	</select>
+	
+	<!-- 비전데이터 엑셀 조회 -->
+	<select id="getVisionExcel" parameterType="pmngReportBean" resultType="hmap">
+		SELECT row_number() over(order by vision_raw_seq asc) rn
+			, vision_raw_seq
+			, to_char(to_timestamp(data_tm, 'YYYYmmddHH24missms'), 'yyyy-mm-dd HH24:mi:ss:ms') as data_tm
+<!-- 			, TO_CHAR(TO_TIMESTAMP(data_tm, 'YYYYMMDDHH24MISSms'), 'YYYYMMDDHH24MISS') as data_tm -->
+		<foreach collection="var_id_str" item="item">
+            , ${item}
+         </foreach> 
+		FROM t_vision_raw
+		where 1=1
+			<!-- cmi 비전은 Vision으로 수집됨 -->
+			and dvc_id = 'Vision'
+			<if test='lot_id != null and !"".equals(lot_id)'>
+				and lot_id = #{lot_id}
+			</if>
+			<if test='sdate != null and !"".equals(edate)'>
+				and data_tm between #{sdate} and #{edate}
+			</if>
+		order by rn
+	</select>
+	
+	<!-- 에러 분석화면의 sample size 기준 설정 -->
+	<select id="getSampleSize" parameterType="pmngReportBean" resultType="hmap">
+		select cat_cd, cd, cd_attr_1, cd_attr_2
+		from t_cm_cd
+		where cat_cd = 'SAMPLE_SIZE'
+	</select>
+	
+	<!-- 	에러 분석 화면의 total 값  -->
+	<select id="getTotalErrSummary" parameterType="pmngReportBean" resultType="hmap">
+		select TO_CHAR(tot_input_cnt, 'FM999,999,999,999,999') as tot_input_cnt
+		, TO_CHAR(tot_ng_cnt, 'FM999,999,999,999,999') as tot_ng_cnt
+		, case when tot_ng_cnt is null or tot_ng_cnt::integer = 0 then 0
+		 		when tot_ng_cnt &gt; 0 then round(((tot_ng_cnt/tot_input_cnt::numeric)*100), 2)
+			end as ng_rate
+		from 
+		(
+			select 
+				(
+					select count(*) 
+					from t_vision_raw 
+					where 1=1  
+						<!-- cmi 비전은 Vision으로 수집됨 -->
+						and dvc_id = 'Vision'
+					<if test='sdate != null and !"".equals(sdate) and edate != null and !"".equals(edate)'>
+						and data_tm BETWEEN #{sdate} AND #{edate}
+					</if>
+					<if test='lot_id != null and !"".equals(lot_id)'>
+						and lot_id = #{lot_id}
+					</if>
+				) as tot_input_cnt,
+				(
+					select count(*) 
+					from t_vision_raw 
+					where 1=1
+					<!-- cmi 비전은 Vision으로 수집됨 -->
+					and dvc_id = 'Vision'
+					<if test='sdate != null and !"".equals(sdate) and edate != null and !"".equals(edate)'>
+						and data_tm BETWEEN TO_CHAR(TO_TIMESTAMP(SUBSTRING(#{sdate}, 1, 14), 'yyyymmddHH24miss'), 'YYYYMMDDHH24MISSMS') 
+						AND TO_CHAR(TO_TIMESTAMP(SUBSTRING(#{edate}, 1, 14), 'yyyymmddHH24miss'), 'YYYYMMDDHH24MISSMS')
+					</if>
+					<if test='lot_id != null and !"".equals(lot_id)'>
+						and lot_id = #{lot_id}
+					</if>
+					and final_result = 1
+				) as tot_ng_cnt
+		) t1
+	</select>
+	
+	<!-- 	에러 분석 화면의 total Summary 값  -->
+	<select id="getErrSummary" parameterType="pmngReportBean" resultType="hmap">
+		with w_date as (
+		    select
+		    gr_rn
+		    , max(T2.start_dt) as start_dt
+		    , max(T2.end_dt) as end_dt
+		    , case when lag(gr_rn) over (order by gr_rn) is null then 0 
+			  else lag(gr_rn) over (order by gr_rn) end as lag1
+		    from (
+		        select
+		        case when diff = 1 then lead(rn, 1) over(order by rn)
+		        else rn
+		        end gr_rn
+		        , case when diff = 1 then data_tm end start_dt
+		        , case when diff = 2 then data_tm end end_dt
+		        from (
+		            select ROW_NUMBER() OVER(order by data_tm) as rn
+		            , case when ROW_NUMBER() OVER(order by data_tm) % #{sample_size} = 0 then 2
+		            	   when ROW_NUMBER() OVER(order by data_tm) = count(*) over(partition by dvc_id) then 2
+		                   when ROW_NUMBER() OVER(order by data_tm) % #{sample_size} = 1 then 1 end as diff
+		            , data_tm
+		            from t_vision_raw
+		            where 1=1
+		            <if test='sdate != null and !"".equals(sdate) and edate != null and !"".equals(edate)'>
+						and data_tm BETWEEN #{sdate} AND #{edate}
+					</if>
+		            order by data_tm
+		        ) T1
+		        where (diff = 1 or diff = 2)
+		        order by gr_rn, data_tm, diff
+		    ) T2
+		    group by gr_rn
+		)
+		select
+		ROW_NUMBER() OVER(order by gr_rn) as rn
+		, T1.gr_rn, T1.start_dt, T1.end_dt
+		, (select case when to_ch2((count(*)/(T1.gr_rn-T1.lag1)::numeric)) = '0' then '0.00'
+			else to_ch2((count(*)/(T1.gr_rn-T1.lag1)::numeric)) end from t_vision_raw T3 where T3.data_tm between T1.start_dt and T1.end_dt and final_result = 1) as ng_rate   
+		, (select count(*) from t_alarm_plc_list T2 where T2.gen_dt between to_timestamp(T1.start_dt, 'YYYYMMDDHH24MISSMS') and to_timestamp(T1.end_dt, 'YYYYMMDDHH24MISSMS')) as alarm_cnt
+		, (select case when sum(diff_date) is null then to_char('0 minute'::interval, 'HH24:MI:SS')
+			else to_char(sum(diff_date), 'HH24:MI:SS') end as diff_date from (
+		        select
+		        data_tm
+		        , data_tm - lag(data_tm, 1) over(order by data_tm) as diff_date
+		        from (
+		            select T4.data_val
+		            , to_timestamp(T4.data_tm, 'YYYYMMDDHH24MISSMS') as data_tm
+		            from t_zs_raw T4
+		            where T4.data_tm between T1.start_dt and T1.end_dt
+		            and T4.var_id = 'Equipment_State'
+		            <if test='dvc_id != null and !"".equals(dvc_id)'>
+			            and T4.dvc_id = #{dvc_id}
+					</if>
+		            and T4.data_val != 1
+		        ) T1
+		    )T2
+		) as non_operation_time
+		, (select count(*) 
+			from t_alarm_plc_list T5 
+			left outer join t_var_info T6 
+				on T5.var_id = T6.var_id 
+			left outer join t_alarm_trouble_info T7
+	        	on T5.var_id = T7.var_id
+	        	and T5.alarm_data_val = T7.alarm_cd
+			where T7.var_gr in ('Material Replacement') 
+			and T5.gen_dt between to_timestamp(T1.start_dt, 'YYYYMMDDHH24MISSMS')  and to_timestamp(T1.end_dt, 'YYYYMMDDHH24MISSMS')
+		) as mate_repl_cnt
+		from w_date T1
+		where gr_rn is not null
+		group by T1.gr_rn, T1.start_dt, T1.end_dt, T1.lag1
+		order by gr_rn
+	</select>
+	
+	<!-- 	에러 분석 화면 차트 안에 NG CNT 값  -->
+	<select id="getErrNGcnt" parameterType="pmngReportBean" resultType="hmap">
+		select count(*)
+		from t_vision_raw
+		where final_result = 1
+		<!-- cmi 비전은 Vision으로 수집됨 -->
+			and dvc_id = 'Vision'
+		<if test='sdate != null and !"".equals(sdate) and edate != null and !"".equals(edate)'>
+		and data_tm BETWEEN TO_CHAR(TO_TIMESTAMP(SUBSTRING(#{sdate}, 1, 14), 'yyyymmddHH24miss'), 'YYYYMMDDHH24MISSMS')
+		and TO_CHAR(TO_TIMESTAMP(SUBSTRING(#{edate}, 1, 14), 'yyyymmddHH24miss'), 'YYYYMMDDHH24MISSMS')
+		</if>
+	</select>
+	
+	<!-- 	에러 분석 화면 Material list  -->
+	<select id="getErrMaterialList" parameterType="pmngReportBean" resultType="hmap">
+		select t1.var_id
+				, t2.var_gr
+				, to_char(t1.start_dt, 'YYYY-MM-DD HH24:MI:SS') as start_dt
+				, to_char(t1.end_dt, 'YYYY-MM-DD HH24:MI:SS') as end_dt
+				, alarm_data_val as data_val
+				, trouble_cd, loss_detail_cd
+				, (
+					select lot_id
+						from t_lot_hist 
+						where 1=1
+						<if test='sdate != null and !"".equals(sdate) and edate != null and !"".equals(edate)'>
+					 		and sta_time between to_timestamp(#{sdate}, 'YYYYMMDDHH24MISS') and to_timestamp(#{edate}, 'YYYYMMDDHH24MISS')
+						 </if>
+						<if test='sdate != null and !"".equals(sdate) and edate != null and !"".equals(edate)'>
+							 or end_time between to_timestamp(#{sdate}, 'YYYYMMDDHH24MISS') and to_timestamp(#{edate}, 'YYYYMMDDHH24MISS')
+						 </if>
+						 and dvc_id = #{dvc_id}
+					order by sta_time desc
+				 	limit 1
+			 	) as input_lot_id
+			 	, (
+			 		select COALESCE(data_str_val, '-') as data_str_val
+					from t_cllct_recent_data
+					where var_id = 'Lot ID'
+					and dvc_id = #{dvc_id}
+			 	) as curr_lot_id
+		from t_alarm_plc_list t1
+		left outer join t_var_info t2
+			on t1.var_id = t2.var_id
+		left outer join t_alarm_trouble_info t3
+			on t1.var_id = t3.var_id
+			and t1.alarm_data_val = t3.alarm_cd
+		where t3.var_gr in ('Material Replacement')
+			and gen_dt between TO_TIMESTAMP(#{sdate}, 'YYYYMMDDHH24MISS') and TO_TIMESTAMP(#{edate}, 'YYYYMMDDHH24MISS')
+	</select>
+	
+	<!-- 	에러 분석 화면 Trouble list  -->
+	<select id="getErrTroubleList" parameterType="pmngReportBean" resultType="hmap">
+		select t1.var_id
+				, t2.var_gr
+				, to_char(t1.start_dt, 'YYYY-MM-DD HH24:MI:SS') as start_dt
+				, to_char(t1.end_dt, 'YYYY-MM-DD HH24:MI:SS') as end_dt
+				, alarm_data_val as data_val
+				, to_char((t1.end_dt - t1.start_dt), 'HH24:MI:SS') as diff_dt
+				, trouble_cd, loss_detail_cd
+		from t_alarm_plc_list t1
+		left outer join t_var_info t2
+			on t1.var_id = t2.var_id
+		left outer join t_alarm_trouble_info t3
+			on t1.var_id = t3.var_id
+			and t1.alarm_data_val = t3.alarm_cd
+		where t3.var_gr in ('BM', 'No Buffer', 'PD', 'User Stop')
+			and gen_dt between TO_TIMESTAMP(#{sdate}, 'YYYYMMDDHH24MISS') and TO_TIMESTAMP(#{edate}, 'YYYYMMDDHH24MISS')
+	</select>
+</mapper>

@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:59 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="authSqlMap">
+
+	<!-- 권한 그룹 관리 -->
+	<select id="getUserAuthGrList" resultType="userAuthGrBean">
+		SELECT
+			auth_gr_no
+			, auth_gr_nm
+			, auth_gr_desc
+			, tot_menu_auth_yn
+			, use_yn
+			, home_yn
+			, home_menu_no
+		FROM t_auth_gr
+		ORDER BY auth_gr_no ASC
+	</select>
+	
+	<select id="getUserAuthGr" parameterType="userAuthGrBean" resultType="userAuthGrBean">
+		SELECT
+			auth_gr_no
+			, auth_gr_nm
+			, auth_gr_desc
+			, tot_menu_auth_yn
+			, use_yn
+			, home_yn
+			, home_menu_no
+		FROM t_auth_gr
+		WHERE auth_gr_no = #{auth_gr_no}
+	</select>
+	
+	<insert id="insertUserAuthGr" parameterType="userAuthGrBean">
+		INSERT INTO t_auth_gr(
+			auth_gr_no, auth_gr_nm, auth_gr_desc, use_yn , home_yn, home_menu_no
+		) VALUES (
+			(select coalesce(max(auth_gr_no),0) from t_auth_gr) + 1, #{auth_gr_nm}, #{auth_gr_desc}, #{use_yn} , 'N', 1
+		)
+	</insert>
+	
+	<update id="updateUserAuthGr" parameterType="userAuthGrBean">
+		UPDATE t_AUTH_GR
+		SET
+			auth_gr_nm 		= #{auth_gr_nm}
+			, auth_gr_desc 	= #{auth_gr_desc}
+			, use_yn 		= #{use_yn}
+			, home_yn		= #{home_yn}
+			<if test='home_menu_no == null'>
+			, home_menu_no  = 1
+			</if>
+			<if test='home_menu_no != null'>
+			, home_menu_no  = #{home_menu_no}
+			</if>
+		WHERE auth_gr_no = #{auth_gr_no}
+	</update>
+	
+	<delete id="deleteUserAuthMapp" parameterType="userAuthGrBean">
+		DELETE FROM t_user_auth_gr
+		WHERE auth_gr_no = #{auth_gr_no}
+	</delete>
+	
+	<delete id="deleteUserAuthGr" parameterType="userAuthGrBean">
+		DELETE FROM t_auth_gr
+		WHERE auth_gr_no = #{auth_gr_no}
+	</delete>
+	<!-- 권한 그룹 관리 -->
+	
+	
+	
+	
+	<!-- 전체 메뉴 목록 & 해당 권한그룹에 부여된 메뉴목록  -->
+	<select id="getUserAuthList" parameterType="userAuthGrBean" resultType="userAuthGrBean">
+		SELECT 
+			t2.auth_gr_no
+			, t1.menu_no
+			, t1.menu_nm
+			, t1.menu_desc
+			, t1.menu_depth
+			, t1.disp_ord
+			, t1.p_menu_no
+			, t1.show_yn
+			, t3.cd_val
+		FROM t_menu_info t1
+		LEFT OUTER JOIN t_auth_gr_menu_mapp t2
+			ON t2.menu_no = t1.menu_no
+				AND t2.auth_gr_no = #{auth_gr_no}
+		LEFT OUTER JOIN t_cm_cd t3
+			ON t1.act_type = t3.cd
+				AND t3.cat_cd = 'MENU_ACT_TYPE'
+		WHERE t1.use_yn = 'Y'
+		ORDER BY t1.menu_depth ASC, t1.p_menu_no ASC, t1.disp_ord ASC
+	</select>
+		
+	<!-- 사용자 그룹정보 추가-->
+	<insert id="insertUserAuthGrMapp" parameterType="hmap">
+		INSERT INTO t_user_auth_gr (
+			user_id, auth_gr_no
+		) VALUES ( 
+			#{user_id}, CAST(#{auth_gr_no} AS INT)
+		)
+	</insert>
+		
+	<!-- 해당 권한 그룹에 전체 메뉴 권한 추가(전체 메뉴 권한 여부가 Y 일 경우 사용) -->
+	<insert id="insertUserAuthGrTotMenu" parameterType="userAuthGrBean">
+		INSERT INTO t_auth_gr_menu_mapp
+			(auth_gr_no, menu_no)
+		SELECT #{auth_gr_no}, a.menu_no
+		FROM t_menu_info a
+	</insert>
+	
+	<!-- 사용자 그룹정보 삭제-->
+	<delete id="deleteUserAuthGrMapp" parameterType="userInfoBean">
+		DELETE from t_user_auth_gr
+		WHERE user_id = #{user_id}
+	</delete>
+	
+	<!-- 부모 메뉴 조회-->
+	<select id="getParentmenuList" parameterType="userAuthGrBean" resultType="hmap">
+		SELECT 
+			t2.auth_gr_no
+			, t1.menu_no
+			, t1.menu_nm
+			, t1.menu_desc
+			, t1.menu_depth
+			, t1.disp_ord
+			, t1.p_menu_no
+			, t1.show_yn
+			, t3.cd_val
+		FROM t_menu_info t1
+		INNER JOIN t_auth_gr_menu_mapp t2
+			ON t2.menu_no = t1.menu_no
+			AND t2.auth_gr_no = #{auth_gr_no}
+		LEFT OUTER JOIN t_cm_cd t3
+			ON t1.act_type = t3.cd
+				AND t3.cat_cd = 'MENU_ACT_TYPE'
+		WHERE t1.use_yn = 'Y'
+			and t1.menu_depth = 1
+		ORDER BY t1.menu_depth ASC, t1.p_menu_no ASC, t1.disp_ord asc
+	</select>
+	
+	<!-- 하위 메뉴 조회 -->
+	<select id="getmenuList" parameterType="userAuthGrBean" resultType="hmap">
+		SELECT 
+			t2.auth_gr_no
+			, t1.menu_no
+			, t1.menu_nm
+			, t1.menu_desc
+			, t1.menu_depth
+			, t1.disp_ord
+			, t1.p_menu_no
+			, t1.show_yn
+			, t3.cd_val
+		FROM t_menu_info t1
+		INNER JOIN t_auth_gr_menu_mapp t2
+			ON t2.menu_no = t1.menu_no
+				AND t2.auth_gr_no = 1
+		LEFT OUTER JOIN t_cm_cd t3
+			ON t1.act_type = t3.cd
+				AND t3.cat_cd = 'MENU_ACT_TYPE'
+		WHERE t1.use_yn = 'Y'
+			and t1.menu_depth = 2
+		ORDER BY t1.menu_depth ASC, t1.p_menu_no ASC, t1.disp_ord asc
+	</select>
+	
+</mapper>

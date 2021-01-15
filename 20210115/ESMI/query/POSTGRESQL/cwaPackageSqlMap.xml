@@ -1,0 +1,496 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:56 KST 2017 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="customSqlMap">
+
+
+	<select id="getDvcList" parameterType="custombean" resultType="hmap">
+		select dvc_id, dvc_nm, tree_desc
+		  from (select dvc_id, dvc_nm, dvc_seq 
+	              from t_dvc_info) dvc
+	           inner join
+	           (select tree_nm, tree_seq, tree_desc
+ 	              from t_tree_info t1
+	             where p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+	               and (SELECT count(1) FROM t_tree_info WHERE p_tree_seq = t1.tree_seq) > 0) dvc_tree
+	           on dvc.dvc_id = dvc_tree.tree_nm
+	 	order by tree_desc        
+	</select>
+	
+	<!-- Index & Forming 고장예지 값 -->
+	<select id="getIndexForming" parameterType="hmap" resultType="hmap">
+		select a1.dvc_id, a1.var_id, coalesce(a2.data_val, a1.data_val) as data_val
+		  from (
+				select #{index_01_dvc} as dvc_id, #{index_01_var} as var_id, 0 as data_val
+				UNION ALL
+				select #{index_02_dvc} as dvc_id, #{index_02_var} as var_id, 0 as data_val
+				UNION ALL
+				select #{forming_01_dvc} as dvc_id, #{forming_01_var} as var_id, 0 as data_val
+				UNION ALL
+				select #{forming_02_dvc} as dvc_id, #{forming_02_var} as var_id, 0 as data_val
+			 ) a1
+		  left outer join (
+<!-- 				select dvc_id, var_id, ROUND(data_val::numeric*100, 0) as data_val, last_cllct_dt -->
+				select dvc_id, var_id, ROUND(data_val::numeric, 0) as data_val, last_cllct_dt
+				  from t_cllct_recent_data
+				 where 1=1
+				   and dvc_id = #{index_01_dvc}
+				   and var_id = #{index_01_var}
+			 ) a2
+			on a1.dvc_id = a2.dvc_id
+	</select>
+	
+	
+	<!-- 알람 리스트 조회 -->
+	<select id="getAlarmList" parameterType="alarmBean" resultType="hmap">
+		SELECT ROW_NUMBER() OVER(ORDER BY gen_dt DESC) AS rn
+			 , a1.*
+		  FROM (
+				SELECT t1.dvc_id, t2.dvc_nm
+					 , TO_CHAR(t1.gen_dt, 'yyyy-mm-dd HH24:MI:ss') AS gen_dt
+					 , t3.alarm_rule_nm as alarm_rule_desc
+				  FROM t_alarm_list t1
+				  LEFT OUTER JOIN t_dvc_info t2
+				    ON t1.dvc_id = t2.dvc_id
+				  LEFT OUTER JOIN t_alarm_rule_info t3
+				    ON t1.alarm_rule_seq = t3.alarm_rule_seq
+<!-- 				UNION ALL -->
+<!-- 				SELECT t1.dvc_id, t2.dvc_nm -->
+<!-- 					 , TO_CHAR(TO_TIMESTAMP(data_tm, 'yyyymmddhh24miss'), 'yyyy-mm-dd HH24:MI:ss') AS gen_dt -->
+<!-- 					 , t1.dvc_id || ' ' || t1.var_id  as alarm_rule_desc -->
+<!-- 				  FROM t_zs_raw t1 -->
+<!-- 				  LEFT OUTER JOIN t_dvc_info t2 -->
+<!-- 				    ON t1.dvc_id = t2.dvc_id -->
+<!-- 				 WHERE 1=1 -->
+<!-- 				   AND var_id IN ('index01_predict', 'index02_predict', 'forming01_predict', 'forming02_predict') -->
+<!-- 				   AND data_val = '-1' -->
+			 ) a1
+	</select>
+	
+	
+	
+<!-- PKG 4호기 UI 관련 쿼리 -->
+	<!-- Unit 별 Load Factor -->
+	<select id="getLoadFactorList" parameterType="hmap" resultType="hmap">
+		WITH dvc_list AS (SELECT tree_nm AS dvc_id
+						  FROM t_tree_info 
+						  WHERE p_tree_seq = (SELECT tree_seq 
+											  FROM t_tree_info 
+											  WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+											  AND tree_nm = #{dvc_id}))
+		SELECT  coalesce(NULLIF(var_nm, ''), axis_t.var_id) || '|' || axis_t.var_id  "xunit",
+		        substring(axis_t.t_md, 1,2)||'/'||substring(axis_t.t_md, 3,4) "data_tm",
+		        COALESCE(data_val, 0) "data_val",
+		        intnsf_val  "load_val"
+		FROM (SELECT dvc_id, var_id , #{endDate} AS "t_md"
+			  FROM t_stats_data
+		 	  WHERE t_md = #{endDate}
+			  GROUP BY dvc_id, var_id
+			  HAVING dvc_id in (SELECT dvc_id FROM dvc_list)
+		      ) axis_t
+		      INNER JOIN (
+		      	SELECT DISTINCT var_id, var_nm FROM t_var_info tvi WHERE var_gr = #{loadfactor_type}
+		      ) var ON axis_t.var_id = var.var_id
+		      LEFT OUTER JOIN
+		      (SELECT lf.dvc_id, lf.var_id, lf.data_val, lif.intnsf_val
+		       FROM (SELECT dvc_id, var_id,
+		                    ROUND(max(data_max)::NUMERIC, 2) as data_val
+		             FROM t_stats_data tsd 
+		             WHERE t_md = #{endDate}
+		             AND dvc_id in (SELECT dvc_id FROM dvc_list)
+		             GROUP BY dvc_id, var_id
+		             ) lf
+		             LEFT OUTER join
+		      		 (SELECT t1.dvc_id, t1.var_id,
+		                    ROUND((COALESCE(t1.data_val,0)-COALESCE(t2.data_val,0)), 2) as intnsf_val
+		             FROM (SELECT dvc_id, var_id,
+		                          t_md,
+		                          max(data_max)::NUMERIC as data_val
+		                    FROM t_stats_data   
+		                    WHERE t_md = #{endDate}
+		                    AND dvc_id in (SELECT dvc_id FROM dvc_list)
+		                    GROUP BY dvc_id, var_id, t_md
+		                    ) t1
+		                    LEFT OUTER JOIN
+		                    (SELECT dvc_id, var_id,
+		                            max(data_max)::NUMERIC as data_val
+		                       FROM t_stats_data tsd 
+		                       WHERE t_md = #{startDate}
+		                       AND dvc_id in (SELECT dvc_id FROM dvc_list)
+		                     GROUP BY dvc_id, var_id, t_md
+		                     ) t2
+		                    ON t1.dvc_id = t2.dvc_id AND t1.var_id = t2.var_id
+		               )lif
+		               ON lf.dvc_id = lif.dvc_id AND lf.var_id = lif.var_id 
+		    ) data_t
+		    ON axis_t.dvc_id = data_t.dvc_id AND axis_t.var_id = data_t.var_id 
+		    ORDER BY axis_t.var_id	
+	</select>
+	
+	<!-- 특정 Unit 상세  메인 차트 쿼리 -->
+	<select id="getLoadFactorDetail" parameterType="hmap" resultType="hmap">
+		WITH dvc_list AS (SELECT tree_nm AS dvc_id
+							  FROM t_tree_info 
+							  WHERE p_tree_seq = (SELECT tree_seq 
+												  FROM t_tree_info 
+												  WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+												  AND tree_nm = #{dvc_id}))
+		, stat_day as
+		(SELECT dvc_id, var_id, max(data_max) data_max, sum(data_sum) data_sum, sum(data_cnt) data_cnt
+			  FROM t_stats_data_day 
+			 WHERE substring(data_tm, 5) IN
+				    <foreach collection="periodStr" item="item"  open="(" close=")" separator=",">
+			            #{item}
+			         </foreach> 
+			   AND dvc_id in (SELECT dvc_id FROM dvc_list)
+			 GROUP BY dvc_id, var_id 
+		)	
+		, alarm as
+		(SELECT 1 alarm_target, var_id, dvc_id
+		 FROM 
+		(SELECT stat.dvc_id, stat.var_id, var_gr, var_gr_seq, t_md, data_tm,
+			    to_char(to_timestamp(stat.data_tm, 'yyyymmddhh24miss'), 'mm/dd hh24:mi:ss') data_tmf,
+			   ROUND((stat.data_sum/stat.data_cnt)::numeric, 2) as data_val,
+			   ROUND((stat_day.data_sum/stat_day.data_cnt)::numeric, 2) as data_day_val
+		  FROM (SELECT *
+			  	  FROM t_stats_data 
+			  	 WHERE t_md= #{endDate}
+			  	 AND dvc_id in (SELECT dvc_id FROM dvc_list)
+			  	) stat
+				INNER JOIN (
+					SELECT DISTINCT var_id, var_nm, var_gr, var_gr_seq FROM t_var_info tvi WHERE var_gr ='LOAD_FACTOR'
+				) var 
+				ON stat.var_id = var.var_id
+				INNER JOIN stat_day stat_day
+				   ON stat.dvc_id=stat_day.dvc_id
+				  AND stat.var_id=stat_day.var_id
+				  AND stat.data_sum/stat.data_cnt > (stat_day.data_sum/stat_day.data_cnt) + 
+		  		 							  		(SELECT cd_val::numeric FROM t_cm_cd WHERE cat_cd='LOAD_FACTOR' AND cd = 'ALARM_COND_VAL')
+		UNION ALL		  
+		SELECT stat.dvc_id, stat.var_id, var_gr, var_gr_seq, t_md, data_tm,
+			    to_char(to_timestamp(stat.data_tm, 'yyyymmddhh24miss'), 'mm/dd hh24:mi:ss') data_tmf,
+			   ROUND((stat.data_sum/stat.data_cnt)::numeric, 2) as data_val,
+			   ROUND((stat_day.data_sum/stat_day.data_cnt)::numeric, 2) as data_day_val
+		  FROM (SELECT *
+			  	  FROM t_stats_data 
+			  	 WHERE t_md= #{endDate}
+			  	 AND dvc_id in (SELECT dvc_id FROM dvc_list)
+			  	) stat
+				INNER JOIN (
+					SELECT DISTINCT var_id, var_nm, var_gr, var_gr_seq FROM t_var_info tvi WHERE var_gr ='LOAD_FACTOR_EC'
+				) var 
+				ON stat.var_id = var.var_id
+				INNER JOIN stat_day stat_day
+				   ON stat.dvc_id=stat_day.dvc_id
+				  AND stat.var_id=stat_day.var_id
+				  AND stat.data_sum/stat.data_cnt > (stat_day.data_sum/stat_day.data_cnt)
+				  									 + (SELECT cd_val::numeric FROM t_cm_cd WHERE cat_cd='LOAD_FACTOR' AND cd = 'ALARM_COND_VAL_EC')
+		UNION ALL				  									  		
+		SELECT stat.dvc_id, stat.var_id, var_gr, var_gr_seq, t_md, data_tm,
+			   to_char(to_timestamp(stat.data_tm, 'yyyymmddhh24miss'), 'mm/dd hh24:mi:ss') data_tmf,
+			   ROUND(stat.data_max::numeric, 2) as data_val,
+			   ROUND(stat_day.data_max::numeric, 2) as data_day_val
+		  FROM (SELECT *
+			  	  FROM t_stats_data 
+			  	 WHERE t_md =  #{endDate}
+			  	 AND dvc_id in (SELECT dvc_id FROM dvc_list)
+			  	) stat
+				INNER JOIN (
+					SELECT DISTINCT var_id, var_nm, var_gr, var_gr_seq FROM t_var_info WHERE var_gr = 'LOAD_FACTOR_PEAK'
+				) var 
+				ON stat.var_id = var.var_id
+				INNER JOIN stat_day stat_day
+				   ON stat.dvc_id=stat_day.dvc_id
+				  AND stat.var_id=stat_day.var_id
+				  AND stat.data_max>stat_day.data_max + (SELECT cd_val::numeric FROM t_cm_cd WHERE cat_cd='LOAD_FACTOR' AND cd = 'ALARM_COND_VAL_PEAK')
+		) t
+		GROUP BY var_id, dvc_id
+		)
+		,load_factor AS 
+		(SELECT t.* , var.var_gr
+		  FROM (SELECT dvc_id, var_id, substring(data_tm, 5) t_md,
+					   max(data_max) over(PARTITION BY dvc_id, var_id, data_tm) data_max, 
+					   max(data_max) over(PARTITION BY dvc_id, var_id) max4days,
+					   sum(data_sum) over(PARTITION BY dvc_id, var_id, data_tm) data_sum, 
+					   sum(data_sum) over(PARTITION BY dvc_id, var_id) sum4days,
+					   sum(data_cnt) over(PARTITION BY dvc_id, var_id, data_tm) data_cnt, 
+					   sum(data_cnt) over(PARTITION BY dvc_id, var_id) cnt4days
+			      FROM t_stats_data_day 
+				 WHERE substring(data_tm, 5) IN
+				    <foreach collection="periodStr" item="item"  open="(" close=")" separator=",">
+			            #{item}
+			         </foreach> 
+				   AND dvc_id in (SELECT dvc_id FROM dvc_list)
+				 UNION ALL
+			    SELECT dvc_id, var_id, t_md,
+			    	   max(data_max) data_max, NULL,
+			    	   sum(data_sum) data_sum, NULL,
+			    	   sum(data_cnt) data_cnt, null
+			      FROM t_stats_data
+			     WHERE t_md = #{endDate}
+			       AND dvc_id in (SELECT dvc_id FROM dvc_list)
+			    GROUP BY dvc_id, var_id, t_md
+			   ) t  
+			   INNER JOIN (
+					SELECT DISTINCT var_id, var_nm, var_gr FROM t_var_info tvi WHERE var_gr like 'LOAD_FACTOR%'
+			    ) var 
+			   ON t.var_id = var.var_id
+		)
+		SELECT coalesce(NULLIF(var.var_nm, ''), axis_t.var_id) || '|' || axis_t.var_id  AS xunit,
+		       substring(axis_t.t_md, 1,2)||'/'||substring(axis_t.t_md, 3,4) "data_tm",
+		       COALESCE(data_val, 0) data_val,
+		       data_val_diff,
+		       CASE WHEN var_gr='LOAD_FACTOR' THEN 1 ELSE 0 END grp_odr,
+		       var_gr,
+		       var_gr_seq,
+		       alarm_target,
+		       axis_t.*
+		FROM (SELECT t2.dvc_id, t2.var_id, t1.t_md, t1.dt
+		  		FROM (SELECT to_char(date_series, 'mmdd') AS t_md, date_series dt
+		      	        FROM generate_series(to_date(#{edate}, 'yyyymmdd'), 
+		                                  	(to_date(#{edate}, 'yyyymmdd') - INTERVAL '4 day')::DATE,
+				                             '-1 day'::interval)  date_series) t1
+				      CROSS JOIN
+					  (SELECT dvc_id, var_id FROM t_stats_data
+					    WHERE t_md in (SELECT to_char(date_series, 'mmdd') 
+					                     FROM generate_series(to_date(#{edate}, 'yyyymmdd'), 
+		                      		 					     (to_date(#{edate}, 'yyyymmdd') - INTERVAL '4 day')::DATE, '-1 day'::interval) date_series)
+		 			      AND dvc_id in (SELECT dvc_id FROM dvc_list)
+					   GROUP BY dvc_id, var_id) t2
+			 ) axis_t
+		     INNER JOIN (
+		   		SELECT DISTINCT var_id, var_nm, var_gr, var_gr_seq FROM t_var_info tvi WHERE var_gr like 'LOAD_FACTOR%'
+		     ) var ON axis_t.var_id = var.var_id
+		     LEFT JOIN(
+			     SELECT DISTINCT var_id, var_nm FROM t_var_info WHERE var_gr like 'LOAD_FACTOR'
+		     ) var_nm ON axis_t.var_id = var_nm.var_id
+		     LEFT JOIN 
+		     (SELECT dvc_id, var_id, t_md, 
+					 ROUND((data_sum/data_cnt)::numeric, 2) as data_val,
+					 ROUND((sum4days/cnt4Days)::numeric, 2) as data_val_diff
+		        FROM load_factor
+		        WHERE var_gr in ('LOAD_FACTOR', 'LOAD_FACTOR_EC')
+		      UNION ALL 
+		      SELECT dvc_id, var_id, t_md, 
+					 ROUND(data_max::numeric, 2) as data_val,
+					 ROUND(max4days::numeric, 2) as data_val_diff
+		        FROM load_factor
+		        WHERE var_gr = 'LOAD_FACTOR_PEAK'
+		     ) data_t
+			ON axis_t.dvc_id = data_t.dvc_id 
+			AND axis_t.var_id = data_t.var_id 
+			AND axis_t.t_md = data_t.t_md
+			LEFT JOIN alarm 
+			ON data_t.dvc_id = alarm.dvc_id
+			AND data_t.var_id = alarm.var_id
+			ORDER BY var_gr_seq, axis_t.var_id, axis_t.dt
+	</select>
+	
+	<select id="getloadSubLeft" parameterType="hmap" resultType="hmap">
+		SELECT var_id
+  		<if test='sdate != null and !"".equals(sdate) and "".equals(edate)'>
+				 , to_char(to_timestamp(data_tm, 'YYYYMMDDHH24MISS000')::timestamp, 'HH24:MI') as data_tm
+				 , round((sum(data_sum)/sum(data_cnt))::numeric, 2) as data_val 
+		 		 , round(max(data_max)::numeric) as data_val_max
+			  FROM t_stats_data
+			 WHERE 1=1
+			 AND t_md = #{sdate}
+		</if>
+		<if test='sdate != null and edate != null and !"".equals(edate)'>
+				 , to_char(to_timestamp(data_tm, 'YYYYMMDDHH24MISS000')::timestamp, 'MM/DD HH24:MI') as data_tm
+				 , round((sum(data_sum)/sum(data_cnt))::numeric, 2) as data_val 
+		 		 , round(max(data_max)::numeric) as data_val_max 
+			  FROM t_stats_data
+			 WHERE 1=1
+			 AND t_md BETWEEN SUBSTRING(#{sdate}, 5, 4) AND SUBSTRING(#{edate}, 5, 4)
+			 AND data_tm BETWEEN #{sdate} AND #{edate}
+		</if>
+			AND dvc_id in 
+				(SELECT tree_nm AS dvc_id
+				 	FROM t_tree_info 
+				 WHERE p_tree_seq = (SELECT tree_seq 
+									FROM t_tree_info 
+									WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+									AND tree_nm = #{dvc_id}))
+			AND var_id in (SELECT var1.var_id 
+						     FROM t_var_info var1, t_var_info var2
+						    WHERE var2.var_id = #{var_id}
+						      AND var2.var_gr_seq=var1.var_gr_seq)
+		GROUP BY var_id, data_tm
+		ORDER BY data_tm, var_id ASC
+	</select>
+	
+	<!-- 가장 최근 데이터  조회  -->
+	<select id="getloadSubRight" parameterType="hmap" resultType="hmap">
+		select var_id
+			 , to_char((last_cllct_dt), 'YYYY-MM-DD HH24:MI:ss') as last_cllct_dt
+			 , to_char((last_cllct_dt), 'HH24:MI:ss') as data_tm
+			 , coalesce(data_val, 0) as data_val
+		from t_cllct_recent_data
+		where 1=1
+			AND dvc_id in 
+				(SELECT tree_nm AS dvc_id
+					 FROM t_tree_info 
+					 WHERE p_tree_seq = (SELECT tree_seq 
+										FROM t_tree_info 
+										WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+										AND tree_nm = #{dvc_id}))
+			AND var_id = #{var_id}
+	  		<if test='last_cllct_dt != null and !"".equals(last_cllct_dt)'>
+				AND last_cllct_dt &gt; ((#{last_cllct_dt})::timestamp + interval '1 second')
+			</if>
+	</select>
+	
+	<!-- 알람 리스트 조회 -->
+	<select id="getLoadFactorAlarmList" parameterType="hmap" resultType="hmap">
+		WITH dvc_list AS (SELECT tree_nm AS dvc_id
+							  FROM t_tree_info 
+							  WHERE p_tree_seq = (SELECT tree_seq 
+												  FROM t_tree_info 
+												  WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+												  AND tree_nm = #{dvc_id}))
+		,stat_day as
+		(SELECT dvc_id, var_id, max(data_max) data_max, sum(data_sum) data_sum, sum(data_cnt) data_cnt
+			  FROM t_stats_data_day 
+			 WHERE substring(data_tm, 5) IN
+				    <foreach collection="periodStr" item="item"  open="(" close=")" separator=",">
+			            #{item}
+			         </foreach> 
+			   AND dvc_id in (SELECT dvc_id FROM dvc_list)
+			 GROUP BY dvc_id, var_id 
+		)		
+		SELECT ROW_NUMBER() OVER(ORDER BY data_tm DESC, var_id) AS rn,
+			   to_char(to_timestamp(data_tm, 'yyyymmddhh24miss'), 'mm/dd hh24:mi:ss') data_tmf,
+			   CASE WHEN var_gr='LOAD_FACTOR' 	   THEN 'Average Exceed' 
+					WHEN var_gr='LOAD_FACTOR_PEAK' THEN 'Peak Exceed'	    
+			   		WHEN var_gr='LOAD_FACTOR_EC'   THEN 'Current Exceed'
+	    	   END reason,
+	    	   (SELECT var_id 
+		          FROM t_var_info 
+		         WHERE var_gr_seq=t.var_gr_seq
+		           AND var_gr='LOAD_FACTOR') var_gr_id,
+		         t.*
+		 FROM 
+		(SELECT stat.dvc_id, stat.var_id, var_gr, var_gr_seq, t_md, data_tm,
+			    to_char(to_timestamp(stat.data_tm, 'yyyymmddhh24miss'), 'mm/dd hh24:mi:ss') data_tmf,
+			   ROUND((stat.data_sum/stat.data_cnt)::numeric, 2) as data_val,
+			   ROUND((stat_day.data_sum/stat_day.data_cnt)::numeric, 2) as data_day_val
+		  FROM (SELECT *
+			  	  FROM t_stats_data 
+			  	 WHERE t_md= #{edate_mmdd}
+			  	 AND dvc_id in (SELECT dvc_id FROM dvc_list)
+			  	) stat
+				INNER JOIN (
+					SELECT DISTINCT var_id, var_nm, var_gr, var_gr_seq FROM t_var_info tvi WHERE var_gr = 'LOAD_FACTOR'
+				) var 
+				ON stat.var_id = var.var_id
+				INNER JOIN stat_day stat_day
+				   ON stat.dvc_id=stat_day.dvc_id
+				  AND stat.var_id=stat_day.var_id
+		  		  AND stat.data_sum/stat.data_cnt > (stat_day.data_sum/stat_day.data_cnt) + 
+		  		 							  		  (SELECT cd_val::numeric FROM t_cm_cd WHERE cat_cd='LOAD_FACTOR' AND cd = 'ALARM_COND_VAL')
+		UNION ALL
+		SELECT stat.dvc_id, stat.var_id, var_gr, var_gr_seq, t_md, data_tm,
+			    to_char(to_timestamp(stat.data_tm, 'yyyymmddhh24miss'), 'mm/dd hh24:mi:ss') data_tmf,
+			   ROUND((stat.data_sum/stat.data_cnt)::numeric, 2) as data_val,
+			   ROUND((stat_day.data_sum/stat_day.data_cnt)::numeric, 2) as data_day_val
+		  FROM (SELECT *
+			  	  FROM t_stats_data 
+			  	 WHERE t_md= #{edate_mmdd}
+			  	 AND dvc_id in (SELECT dvc_id FROM dvc_list)
+			  	) stat
+				INNER JOIN (
+					SELECT DISTINCT var_id, var_nm, var_gr, var_gr_seq FROM t_var_info tvi WHERE var_gr ='LOAD_FACTOR_EC'
+				) var 
+				ON stat.var_id = var.var_id
+				INNER JOIN stat_day stat_day
+				   ON stat.dvc_id=stat_day.dvc_id
+				  AND stat.var_id=stat_day.var_id
+				  AND stat.data_sum/stat.data_cnt > (stat_day.data_sum/stat_day.data_cnt)
+				  									 + (SELECT cd_val::numeric FROM t_cm_cd WHERE cat_cd='LOAD_FACTOR' AND cd = 'ALARM_COND_VAL_EC')
+		UNION ALL  		 							  		  		  
+		SELECT stat.dvc_id, stat.var_id, var_gr, var_gr_seq, t_md, data_tm,
+			   to_char(to_timestamp(stat.data_tm, 'yyyymmddhh24miss'), 'mm/dd hh24:mi:ss') data_tmf,
+			   ROUND(stat.data_max::numeric, 2) as data_val,
+			   ROUND(stat_day.data_max::numeric, 2) as data_day_val
+		  FROM (SELECT *
+			  	  FROM t_stats_data 
+			  	 WHERE t_md =  #{edate_mmdd}
+			  	 AND dvc_id in (SELECT dvc_id FROM dvc_list)
+			  	) stat
+				INNER JOIN (
+					SELECT DISTINCT var_id, var_nm, var_gr, var_gr_seq FROM t_var_info WHERE var_gr = 'LOAD_FACTOR_PEAK'
+				) var 
+				ON stat.var_id = var.var_id
+				INNER JOIN stat_day stat_day
+				   ON stat.dvc_id=stat_day.dvc_id
+				  AND stat.var_id=stat_day.var_id
+				  AND stat.data_max>stat_day.data_max + (SELECT cd_val::numeric FROM t_cm_cd WHERE cat_cd='LOAD_FACTOR' AND cd = 'ALARM_COND_VAL_PEAK')
+		) t
+		ORDER BY data_tm DESC, var_id
+	</select>
+	
+	<select id="getLoadFactorDataForExcel" parameterType="map" resultType="map">
+		WITH dvc_list AS (SELECT tree_nm AS dvc_id
+						  FROM t_tree_info 
+						  WHERE p_tree_seq in (SELECT tree_seq 
+											  FROM t_tree_info 
+											  WHERE p_tree_seq = (SELECT tree_seq FROM t_tree_info WHERE tree_nm = #{tree_nm})
+											  <if test='dvc_id != null'>
+											  AND tree_nm = #{dvc_id}
+										      </if>
+											  ))
+		SELECT ROW_NUMBER() over() rownum, * FROM 
+		(SELECT ROW_NUMBER() over() rownum,
+		   dvc_id,
+		   xunit,
+		   <foreach collection="periodStr" item="item"  open="" close="" index="index" separator=",">
+			   sum(CASE WHEN t.t_md = #{item} THEN t.data_val ELSE 0 END) || CASE WHEN var_gr='LOAD_FACTOR_EC' then '' else '%' END
+			   AS "d${index}"
+		   </foreach>
+		FROM   (SELECT  axis_t.var_id "xunit",
+						axis_t.dvc_id "dvc_id",
+						axis_t.t_md,
+				        substring(axis_t.t_md, 1,2)||'/'||substring(axis_t.t_md, 3,4) "data_tm",
+				        COALESCE(data_val, 0) "data_val",
+				        var_gr,
+				        var_gr_seq,
+				        dt
+				FROM (SELECT t2.dvc_id, t2.var_id, t1.t_md, t1.dt
+				        FROM (SELECT to_char(date_series, 'mmdd') AS t_md, date_series dt
+				              FROM generate_series(to_date(#{edate}, 'yyyymmdd'), 
+				                                  (to_date(#{edate}, 'yyyymmdd') - INTERVAL '14 day')::DATE,
+				                                  '-1 day'::interval)  date_series
+				              ) t1
+				              CROSS JOIN
+				              (SELECT dvc_id, var_id FROM t_stats_data
+				             	WHERE t_md in 
+				             	<foreach collection="periodStr" item="item"  open="(" close=")" separator=",">
+					           	  #{item}
+						       </foreach> 
+				               GROUP BY dvc_id, var_id
+				               HAVING dvc_id in (SELECT dvc_id FROM dvc_list)
+				              ) t2
+				      ) axis_t
+				      INNER JOIN (
+				      	SELECT DISTINCT var_id, var_nm, var_gr, var_gr_seq FROM t_var_info WHERE var_gr like 'LOAD_FACTOR%'
+				      ) var ON axis_t.var_id = var.var_id
+				      LEFT JOIN
+				      (SELECT dvc_id, var_id,
+		                      ROUND(max(data_max)::NUMERIC, 2) as data_val,
+			                  t_md
+			           FROM t_stats_data tsd 
+			           WHERE t_md IN 
+			           <foreach collection="periodStr" item="item"  open="(" close=")" separator=",">
+			           	  #{item}
+				       </foreach>
+				       AND dvc_id in (SELECT dvc_id FROM dvc_list)
+				       GROUP BY dvc_id, var_id, t_md
+				       ) lf 
+				       ON axis_t.dvc_id = lf.dvc_id AND axis_t.var_id = lf.var_id AND axis_t.t_md = lf.t_md
+			    ) t
+		GROUP BY xunit, dvc_id, var_gr, var_gr_seq
+		ORDER BY var_gr_seq, dvc_id desc, xunit
+		) tt;
+	</select>
+</mapper>

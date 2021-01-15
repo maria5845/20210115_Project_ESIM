@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:56 KST 2017 -->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="thresholdSqlMap">
+	
+	
+	<select id="getStatusList" parameterType="pmngReportBean" resultType="map">
+		select m1.*
+			  , m2.threshold_attr1
+			  , m2.threshold_attr1 
+			  , m2.threshold_attr2
+			  , m2.threshold_attr3 
+			  , m2.threshold_attr4 
+			  , m2.threshold_attr5
+			  , case 
+			 		when m2.threshold_type is not null and m2.threshold_attr2 <![CDATA[ < ]]> m1.data_val and m1.data_val <![CDATA[ < ]]> m2.threshold_attr3 then 'run'
+			 		when m2.threshold_type is not null and m2.threshold_attr1 <![CDATA[ < ]]> m1.data_val and m1.data_val <![CDATA[ <= ]]> m2.threshold_attr2 or m2.threshold_attr3 <![CDATA[ <= ]]> m1.data_val and m1.data_val <![CDATA[ < ]]> m2.threshold_attr4 then 'alarm'
+			 		when m2.threshold_type is not null and m2.threshold_attr1 <![CDATA[ >= ]]> m1.data_val or m1.data_val <![CDATA[ >= ]]> m2.threshold_attr4 then 'warn'
+			 	end as status
+		from (
+			select t1.dvc_id::numeric
+				 , t1.var_id
+				 , data_val
+				 , t1.last_cllct_dt
+				 , concat('cyl', t1.dvc_id, '_', t2.var_gr) as threshold 
+			from t_cllct_recent_data t1
+			left outer join t_var_info t2
+			on t1.var_id = t2.var_id 
+			where 1=1
+				and t1.dvc_id in (select dvc_id from t_dvc_info where dvc_nm like concat('%', 'cDAQ', '%'))
+				and t1.var_id in ('Rms', 'MinPlusMax')
+		) m1
+		left outer join t_setting_threshold m2
+		on m1.threshold = m2.threshold_type
+		where m1.dvc_id <![CDATA[ <= ]]> (select cd_val::numeric from t_cm_cd where cat_cd = 'CYLINDER_COUNT')
+		order by var_id asc, last_cllct_dt desc
+	</select>
+	
+	<select id ="getCycleListOp" parameterType="pmngReportBean" resultType="map">
+	SELECT ROW_NUMBER() OVER(ORDER by weekly asc) as rn
+			 , weekly 
+			 , fn_cylinder_num(res_1)||'_'|| res_1 as res_1
+			 , fn_cylinder_num(res_2)||'_'|| res_2 as res_2
+			 , fn_cylinder_num(res_3)||'_'|| res_3 as res_3
+			 , fn_cylinder_num(res_4)||'_'|| res_4 as res_4
+			 , fn_cylinder_num(res_5)||'_'|| res_5 as res_5
+			 , fn_cylinder_num(res_6)||'_'|| res_6 as res_6
+			 , fn_cylinder_num(res_7)||'_'|| res_7 as res_7
+			 , fn_cylinder_num(res_8)||'_'|| res_8 as res_8
+			 , fn_cylinder_num(res_9)||'_'|| res_9 as res_9
+			 , gen_dt 
+		  FROM t_cylinder_r_result a1
+		 WHERE 1=1
+		 AND weekly between '1' AND  '4'
+		 <!--  AND gen_dt > now() - interval '1 day' -->
+		 ORDER BY gen_dt desc;
+	</select>
+	<select id="getCycleList" parameterType="pmngReportBean" resultType="map">
+		SELECT ROW_NUMBER() OVER(ORDER by gen_dt DESC) as rn
+			 , weekly 
+			 , fn_cylinder_num(res_1)||'_'|| res_1 as res_1
+			 , fn_cylinder_num(res_2)||'_'|| res_2 as res_2
+			 , fn_cylinder_num(res_3)||'_'|| res_3 as res_3
+			 , fn_cylinder_num(res_4)||'_'|| res_4 as res_4
+			 , fn_cylinder_num(res_5)||'_'|| res_5 as res_5
+			 , fn_cylinder_num(res_6)||'_'|| res_6 as res_6
+			 , fn_cylinder_num(res_7)||'_'|| res_7 as res_7
+			 , fn_cylinder_num(res_8)||'_'|| res_8 as res_8
+			 , fn_cylinder_num(res_9)||'_'|| res_9 as res_9
+			 , gen_dt 
+		  FROM t_cylinder_r_result a1
+		 WHERE 1=1
+		   <!--  AND gen_dt > now() - interval '1 day' -->
+		 ORDER BY gen_dt desc
+	</select>
+	
+	<!-- 임계치 정보 -->
+	<select id="getSettingThresholdInfo" parameterType="pmngReportBean" resultType="hmap">
+		select threshold_type
+			 , threshold_attr1
+			 , threshold_attr2
+			 , threshold_attr3
+			 , threshold_attr4
+			 , threshold_attr5
+			 , gen_by
+			 , gen_dt
+			 , dvc_id
+		from t_setting_threshold
+	</select>
+	
+	<select id="getResetTime" resultType="string">
+		select cd_val from t_cm_cd where cat_cd = 'CYLINDER_INTERVAL'
+	</select>
+	
+	<select id="getUseNumber" resultType="string">
+		select cd_val from t_cm_cd where cat_cd = 'CYLINDER_COUNT'
+	</select>
+	
+	<update id="updateSettingRefreshTime" parameterType="string" >
+		UPDATE t_cm_cd SET cd_val = #{refresh} WHERE cat_cd = 'CYLINDER_INTERVAL' AND cd = 'INTERVAL'
+	</update>
+	
+	<!-- 환경 임계치 설정 삭제 -->
+	<delete id="deleteSettingThresholdInfo" parameterType="hmap" >
+		delete from t_setting_threshold
+	</delete>
+	
+	<!-- 환경 임계치 설정 추가 -->
+	<insert id="insertSettingThresholdInfo" parameterType="hmap" >
+		insert into t_setting_threshold 
+				( threshold_type
+				, threshold_attr1
+				, threshold_attr2
+				, threshold_attr3
+				, threshold_attr4
+				, threshold_attr5
+				, gen_by
+				, gen_dt
+				, dvc_id )
+			values 
+				( #{threshold_type}
+				, CAST(#{threshold_attr1} AS NUMERIC)
+				, CAST(#{threshold_attr2} AS NUMERIC)
+				, CAST(#{threshold_attr3} AS NUMERIC)
+				, CAST(#{threshold_attr4} AS NUMERIC)
+				, CAST(#{threshold_attr5} AS NUMERIC)
+				, #{login_user_id}
+				, now()
+				, #{dvc_id} )
+	</insert>
+	
+	<!-- Recall의 history -->
+	<insert id="insertSettingThresholdHist" parameterType="hmap" >
+		insert into t_setting_threshold_hist
+				( threshold_type
+				, threshold_attr1
+				, threshold_attr2
+				, threshold_attr3
+				, threshold_attr4
+				, gen_by
+				, gen_dt
+				, dvc_id )
+			values 
+				( #{threshold_type}
+				, CAST(#{threshold_attr1} AS NUMERIC)
+				, CAST(#{threshold_attr2} AS NUMERIC)
+				, CAST(#{threshold_attr3} AS NUMERIC)
+				, CAST(#{threshold_attr4} AS NUMERIC)
+				, #{gen_by}
+				, now()
+				, #{dvc_id} )
+	</insert>
+	
+	<!-- chart 좌측 리스트 -->
+	<select id="getVarDataList" parameterType="customBean" resultType="map">
+		SELECT concat('CYL ', dvc_id) as dvc_id
+		FROM t_dvc_info
+		WHERE 1=1
+			and dvc_nm like concat('%', 'cDAQ', '%')
+			and use_yn = 'Y'
+		ORDER BY dvc_seq ASC
+	</select>
+	
+	<!-- 실린더 차트 -->
+	<select id="getDetectChartList" parameterType="customBean" resultType="map">
+		 SELECT case when a1.var_id = 'Rms' then 'RMS'
+	 				when a1.var_id = 'MinPlusMax' then 'PEAK'
+	 			end as var_id
+			 , a1.dvc_id
+			 , ROUND(a1.data_val::NUMERIC, 5) as data_val
+			 , TO_CHAR(TO_TIMESTAMP(SUBSTRING(a1.data_tm, 1, 14), 'yyyymmddHH24miss'), 'mm-dd HH24:mi:ss') as data_tm
+		 FROM t_zs_raw a1
+		 WHERE 1=1
+		   AND a1.t_md BETWEEN SUBSTRING(#{sdate}, 5, 4) AND SUBSTRING(#{edate}, 5, 4)
+		   AND a1.data_tm BETWEEN #{sdate} AND #{edate}
+		   AND a1.dvc_id = #{dvc_id}
+		   AND a1.var_id in ('Rms', 'MinPlusMax')
+		 ORDER BY a1.data_tm ASC
+	</select>
+	
+	<!--실린더 차트 한계점(damaged, warning)-->
+	<select id="getthresholdList" parameterType="customBean" resultType="map">
+		SELECT a.threshold_type
+			 , a.dvc_id
+			 , a.threshold_attr1 as th1
+			 , a.threshold_attr2 as th2
+			 , a.threshold_attr3 as th3
+			 , a.threshold_attr4 as th4 
+		FROM t_setting_threshold a
+		WHERE 1=1
+			AND a.dvc_id = #{dvc_id}
+	</select>
+
+
+	<!-- 실린더 차트 Excel(CSV) -->
+	<select id="createCylinderChartExcel" parameterType="map" resultType="map">
+		 SELECT case when a1.var_id = 'Rms' then 'RMS'
+	 				when a1.var_id = 'MinPlusMax' then 'PEAK'
+	 			end as var_id
+			 , a1.dvc_id
+			 , ROUND(a1.data_val::NUMERIC, 5) as data_val
+			 , TO_CHAR(TO_TIMESTAMP(SUBSTRING(a1.data_tm, 1, 14), 'yyyymmddHH24miss'), 'yyyy-MM-DD HH24:mi:ss') as data_tm
+		 FROM t_zs_raw a1
+		 WHERE 1=1
+		   AND a1.t_md BETWEEN SUBSTRING(#{sdate}, 5, 4) AND SUBSTRING(#{edate}, 5, 4)
+		   AND a1.data_tm BETWEEN #{sdate} AND #{edate}
+		   AND a1.dvc_id = #{dvc_id}
+		   AND a1.var_id in (#{var_id})
+		 ORDER BY a1.data_tm ASC
+	</select>
+	
+	<!-- 실린더 Sigma 계산 -->
+	<select id="getSearchSigma" parameterType="customBean" resultType="map">
+		SELECT 'cyl' || dvc_id as threshold_type
+			 , case when var_id = 'Rms' then
+			 			'rms'
+			 		when var_id = 'MinPlusMax' then
+			 			'peak'
+			 	end as var_id
+			 , case when #{detail_type} = 'minus' then
+						ROUND((avg(data_val) - (stddev(data_val)*${gubun}))::NUMERIC, 3)
+					when #{detail_type} = 'plus' then
+			 			ROUND((avg(data_val) + (stddev(data_val)*${gubun}))::NUMERIC, 3)
+			 	end as sigma
+		FROM t_zs_raw a1
+		WHERE 1=1
+		AND a1.t_md between SUBSTRING(#{sdate}, 5, 4) AND SUBSTRING(#{edate}, 5, 4)
+		AND a1.data_tm BETWEEN #{sdate} AND #{edate}
+		AND a1.dvc_id in
+			<foreach collection="dvc_list" item="item" open="(" close=")" separator=",">
+				#{item}
+			</foreach>
+		group by dvc_id, var_id
+	</select>
+	
+	<!--실린더 Recall History Data -->
+	<select id="getRecallHistData" resultType="map">
+		SELECT upper(split_part(a.threshold_type,'_',2)) as var_id
+			 , a.dvc_id
+			 , a.threshold_attr1 as th1
+			 , a.threshold_attr2 as th2
+			 , a.threshold_attr3 as th3
+			 , a.threshold_attr4 as th4
+			 , TO_CHAR(a.gen_dt, 'yyyy-MM-DD HH24:mi:ss') as gen_dt
+		FROM t_setting_threshold_hist a
+		ORDER BY to_char(a.gen_dt, 'yyyy-MM-DD HH24:mi:ss') desc, a.dvc_id asc;
+	</select>
+	
+</mapper>

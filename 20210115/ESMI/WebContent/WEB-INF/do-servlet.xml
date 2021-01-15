@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- - DispatcherServlet application context for PetClinic's web tier. -->
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+	xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:aop="http://www.springframework.org/schema/aop" 
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.2.xsd
+				           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.2.xsd
+				           http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.2.xsd
+							http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-4.2.xsd">
+
+
+	<aop:aspectj-autoproxy />
+
+
+    <!-- Context 전체 설정 -->
+   	<context:component-scan base-package="com.tectone">
+		<context:include-filter type="annotation" expression="org.springframework.stereotype.Controller" />
+<!-- 		<context:exclude-filter type="annotation" expression="org.springframework.stereotype.Repository" /> -->
+<!-- 		<context:exclude-filter type="annotation" expression="org.springframework.stereotype.Service" /> -->
+	</context:component-scan>
+
+
+    <!-- Enables the Spring MVC @Controller programming model -->
+    <mvc:annotation-driven>
+    	<mvc:argument-resolvers>
+    		<bean class="com.tectone.web.common.resolver.UserSessionArgumentResolver"  >
+    		</bean>
+    	</mvc:argument-resolvers>
+        <mvc:message-converters>
+<!--             @ResponseBody로 String 처리할때 한글처리 -->
+            <bean class="org.springframework.http.converter.StringHttpMessageConverter">
+                <property name="supportedMediaTypes">
+                    <list>
+                        <value>text/html;charset=UTF-8</value>
+                    </list>
+                </property>
+            </bean>
+        </mvc:message-converters>
+    </mvc:annotation-driven>
+<!-- do-servlet.xml 에 적용 -->
+
+    <mvc:interceptors>
+    	
+    	<bean id="localeChangeInterceptor" class="org.springframework.web.servlet.i18n.LocaleChangeInterceptor">
+			<property name="paramName" value="lang" />
+		</bean>
+    	
+        <mvc:interceptor>
+            <mvc:mapping path="/**/**.do"/>
+                <bean class="com.tectone.web.common.domain.SessionInterceptor" >
+					<property name="excludeSessUrlList">
+						<list>
+							<map><entry key="excludeUrl" value="/index.do" /></map>
+							<map><entry key="excludeUrl" value="/login.do" /></map>
+							<map><entry key="excludeUrl" value="/working.do" /></map>
+							<map><entry key="excludeUrl" value="/logout.do" /></map>
+							<map><entry key="excludeUrl" value="/normalLoginActionAjax.do" /></map>
+							<map><entry key="excludeUrl" value="/loginPwdChg.do" /></map>
+							<map><entry key="excludeUrl" value="/pwdchgpopActionAjax.do" /></map>
+							<!-- 각 사이트별 관제 페이지 주소 : /controlnoauth/ 하위의 모든 주소는 세션체크 안함 -->
+							<map><entry key="excludeUrl" value="/controlnoauth/" /></map>
+<!-- 						<map><entry key="excludeUrl" value="/custom/" /></map> -->
+							<map><entry key="excludeUrl" value="/lang/" /></map>
+							<map><entry key="excludeUrl" value="/setting/" /></map>
+							<!-- 시연용 임시 URL -->
+							<map><entry key="excludeUrl" value="/demo.do" /></map>
+						</list>
+					</property>
+					<!-- 권한체크를 하지 않을 URL 관리 -->
+			      	<property name="excludeAuthUrlList">
+						<list>
+							<map><entry key="excludeUrl" value="/main.do" /></map>
+							<map><entry key="excludeUrl" value="/frame.do" /></map>
+							<map><entry key="excludeUrl" value="/common" /></map>
+							<map><entry key="excludeUrl" value="/updateUserTabInfoActionAjax.do" /></map>
+							<!-- 각 사이트별 관제 페이지 주소 : /controlnoauth/ 하위의 모든 주소는 권한체크 안함 -->
+							<map><entry key="excludeUrl" value="/controlnoauth/" /></map>
+							<map><entry key="excludeUrl" value="/custom/" /></map>
+							<map><entry key="excludeUrl" value="/lang/" /></map>
+							<map><entry key="excludeUrl" value="/setting/" /></map>
+							<!-- 자동완성용 -->
+							<map><entry key="excludeUrl" value="/helper/" /></map>
+							<map><entry key="excludeUrl" value="/demo.do" /></map>
+						</list>
+					</property>
+				</bean>
+        </mvc:interceptor>
+    </mvc:interceptors>
+    
+    
+    <!-- Application Message Bundle -->
+	<bean id="messageSource"
+		class="org.springframework.context.support.ReloadableResourceBundleMessageSource">
+		<property name="basename" value="/WEB-INF/messages/message" />
+		<property name="defaultEncoding" value="UTF-8" />
+		<property name="cacheSeconds" value="60" />
+	</bean>
+
+	<!--
+	  - ko : 한국
+	  - en : 영어 
+	 -->
+	<bean id="localeResolver" class="org.springframework.web.servlet.i18n.SessionLocaleResolver">
+		<property name="defaultLocale" value="en" />
+	</bean>
+    <bean id="fixedLocaleResolver" class="org.springframework.web.servlet.i18n.FixedLocaleResolver">
+        <property name="defaultLocale" value="en" />
+    </bean>
+    
+	<bean class="org.springframework.web.servlet.mvc.SimpleControllerHandlerAdapter" />
+
+    <!-- MultipartResolver 설정 -->
+    <bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+        <property name="maxUploadSize"   value="100000000"></property>
+        <property name="maxInMemorySize" value="100000000"></property>
+    </bean>
+    
+<!--     <bean id="uploadDirResource" class="org.springframework.core.io.FileSystemResource"> -->
+<!--         <constructor-arg> -->
+<!--             <value>D:/fileuploads/</value> -->
+<!--         </constructor-arg> -->
+<!--     </bean> -->
+
+	<bean class="org.springframework.web.servlet.view.BeanNameViewResolver">
+        <property name="order" value="0"></property>
+    </bean>
+    
+	<bean id="viewResolver" class="org.springframework.web.servlet.view.UrlBasedViewResolver">
+		<property name="viewClass" value="org.springframework.web.servlet.view.JstlView" />
+		<property name="prefix" value="/WEB-INF/jsp/" />
+		<property name="suffix" value=".jsp" />
+		<property name="order" value="1" />
+	</bean>
+
+    <bean id="objectMapper" class="com.fasterxml.jackson.databind.ObjectMapper" />
+    
+	<bean id="jsonView" class="org.springframework.web.servlet.view.json.MappingJackson2JsonView">
+		<property name="objectMapper" ref="objectMapper"></property>
+	</bean>
+
+	<bean class="org.springframework.web.servlet.mvc.annotation.AnnotationMethodHandlerAdapter" p:alwaysUseFullPath="true">
+		<property name="messageConverters">
+			<list>
+				<bean class="org.springframework.http.converter.json.MappingJackson2HttpMessageConverter">
+					<property name="objectMapper" ref="objectMapper"></property>
+				</bean>
+			</list>
+		</property>
+	</bean>
+
+
+</beans>

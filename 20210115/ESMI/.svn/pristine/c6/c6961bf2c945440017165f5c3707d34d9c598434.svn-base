@@ -1,0 +1,139 @@
+/*************
+	신규 PIE 
+	공통 UI
+	CSS
+**************/
+
+.l-header {
+    height: 50px;
+}
+
+/* 브랜드 */
+.l-brand{
+	height: 100%;
+	width: auto;
+	padding: 0 60px 0 30px;
+	position: static;
+    display: inline-block;
+    vertical-align: top;
+}
+.l-brand a{
+	text-align: center;
+	line-height: 1;
+}
+.l-brand a>*{
+	float: left;
+}
+.l-brand a>img{
+    margin: 10px 10px 0 0;
+}
+.l-brand a>span{
+	margin-top: 16px;
+}
+
+/* 메뉴바 */
+.l-gnb{
+    display: inline-block;
+    vertical-align: top;
+    margin: 0;
+    overflow: hidden;
+    min-width: 350px;
+    box-sizing: border-box;
+}
+.l-gnb>.items{
+	transition: 0.3s;
+}
+.l-gnb>.items>li>ul.items{
+    top: 50px;
+}
+.l-gnb>.items>li{
+	height: 50px;
+    width: 160px!important;
+}
+.l-gnb>.items>li>a span{
+	top: 18px;
+}
+
+/* 사용자옵션 */
+.l-member-info{
+	height: 100%;
+	width: 250px!important;
+	position: static;
+    display: inline-block;
+    vertical-align: top;
+}
+.l-member-info > .in .info-pan{
+	top: 9px!important;
+	right: 70px!important;
+	width: auto;
+	border: none;
+}
+.l-member-info > .in .language,
+.l-member-info > .in .signout {
+    top: 8px!important;
+    right: 7px!important;
+}
+#info_nick{
+	left: 0;
+}
+
+/* 슬라이드버튼 */
+.nav-slide-box{
+/*     display: inline-block; */
+	display: none;
+	vertical-align: top;
+/* 	padding: 0 10px; */
+	height: 100%;
+	box-sizing: border-box;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	cursor: pointer;
+}
+.gnb-btn{
+    color: #d2d2d2;
+    width: 30px;
+    line-height: 55px;
+    text-align: center;
+    display: inline-block; 
+/*     display: none; */
+    opacity: 0.3;
+}
+.gnb-btn.active{
+	opacity: 1;
+	cursor: pointer;
+}
+.gnb-btn.active:hover{
+	color: #fff;
+}
+.gnb-btn.active:hover>span{
+	cursor: pointer;
+}
+.gnb-btn>span{
+	font-size: 23px;
+    transform: scaleX(0.8);
+    cursor: default;
+}
+
+/* 메뉴 프레임 */
+.include.tab_iframe{
+	height: 100%;
+}
+
+/* 푸터 */
+footer{
+/* 	display: none; */
+}
+.l-aside{
+}
+.l-tabs{
+	height: 33px;
+}
+.copyright{
+	margin: 0;
+	vertical-align: middle;
+    font-size: 12px;
+    color: #ffffff;
+    opacity: 0.2;
+    margin-top: 10px;
+}

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:56 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="helperSqlMap">
+
+<!-- 자동완성 조회용 쿼리 -->
+	<!-- user_nm -->
+	<select id="getUserNm" parameterType="helperBean" resultType="helperBean" >
+		SELECT user_nm as search_result
+		  FROM t_user_info a1
+		 WHERE 1=1
+		   AND user_nm LIKE CONCAT('%', #{search_value}, '%')
+	</select>
+	
+	<!-- user_id -->
+	<select id="getUserId" parameterType="helperBean" resultType="helperBean" >
+		SELECT user_id as search_result
+		  FROM t_user_info a1
+		 WHERE 1=1
+		   AND user_id LIKE CONCAT('%', #{search_value}, '%')
+	</select>
+	
+	<!-- dvc_id -->
+	<select id="getDvcId" parameterType="helperBean" resultType="helperBean" >
+		SELECT dvc_id as search_result
+		  FROM t_dvc_info a1
+		  WHERE 1=1
+	   	  AND dvc_id LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- dvc_nm -->
+	<select id="getDvcNm" parameterType="helperBean" resultType="helperBean" >
+		SELECT dvc_nm as search_result
+		  FROM t_dvc_info a1
+		  WHERE 1=1
+	   	  AND dvc_nm LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- param_gr_nm -->
+	<select id="getParamGrNm" parameterType="helperBean" resultType="helperBean" >
+		SELECT param_gr_nm as search_result
+		  FROM t_param_gr_info a1
+		  WHERE 1=1
+	   	  AND param_gr_nm LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- alarm_rule_nm -->
+	<select id="getAlarmRuleNm" parameterType="helperBean" resultType="helperBean" >
+		SELECT alarm_rule_nm as search_result
+		  FROM t_alarm_rule_info a1
+		  WHERE 1=1
+	   	  AND alarm_rule_nm LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- noti_attr1 -->
+	<select id="getNotiAttr" parameterType="helperBean" resultType="helperBean" >
+		SELECT noti_attr_1 as search_result
+		  FROM t_noti_info a1
+		  WHERE 1=1
+	   	  AND noti_attr_1 LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- var_id -->
+	<select id="getVarId" parameterType="helperBean" resultType="helperBean" >
+		SELECT var_id as search_result
+		  FROM t_var_info a1
+		  WHERE 1=1
+	   	  AND var_id ILIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- dtsrc_nm -->
+	<select id="getDtsrcNm" parameterType="helperBean" resultType="helperBean" >
+		SELECT dtsrc_nm as search_result
+		  FROM t_dtsrc_info a1
+		  WHERE 1=1
+	   	  AND dtsrc_nm LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- pnl_nm -->
+	<select id="getPnlNm" parameterType="helperBean" resultType="helperBean" >
+		SELECT pnl_nm as search_result
+		  FROM t_pnl_info a1
+		  WHERE 1=1
+	   	  AND pnl_nm LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- dsbd_nm -->
+	<select id="getDsbdNm" parameterType="helperBean" resultType="helperBean" >
+		SELECT dsbd_nm as search_result
+		  FROM t_dsbd_info a1
+		  WHERE 1=1
+	   	  AND dsbd_nm LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- OPER_TRIGGER_MASTER -->
+	<select id="getOperTriggerMaster" parameterType="helperBean" resultType="helperBean" >
+		SELECT distinct oper_trigger as search_result
+		  FROM T_PARAM_MASTER a1
+		  WHERE 1=1
+	   	  AND oper_trigger LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- PARAM_REF_MASTER -->
+	<select id="getParamRefMaster" parameterType="helperBean" resultType="helperBean" >
+		SELECT distinct param_ref as search_result
+		  FROM T_PARAM_MASTER a1
+		  WHERE 1=1
+	   	  AND param_ref LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- OPER_TRIGGER -->
+	<select id="getOperTrigger" parameterType="helperBean" resultType="helperBean" >
+		SELECT distinct oper_trigger as search_result
+		  FROM T_PARAM_INFO a1
+		  WHERE 1=1
+	   	  AND oper_trigger LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+	<!-- PARAM_REF -->
+	<select id="getParamRef" parameterType="helperBean" resultType="helperBean" >
+		SELECT distinct param_ref as search_result
+		  FROM T_PARAM_INFO a1
+		  WHERE 1=1
+	   	  AND param_ref LIKE CONCAT('%', #{search_value},'%')
+	</select>
+	
+</mapper>

@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="codeSqlMap">
+
+	<!-- 공통코드는 캐시 사용하도록 한다.30분간 유지 -->
+	<cache 
+		eviction="LRU"
+		flushInterval="1800000"
+		size="10240"
+		readOnly="true"/>
+
+	<!-- 				 	-->
+	<!-- 코드 카테고리 		-->
+	<!-- 				 	-->
+	<select id="getCmCategoryList" parameterType="cmcdBean" resultType="cmcdBean">
+		SELECT 
+			cat_cd, cat_nm, p_cat_cd, cat_desc, mdfy_flag
+			, use_yn, gen_by, gen_dt, cat_attr_1, cat_attr_2, cat_attr_3, cat_attr_4, cat_attr_5
+		FROM t_cm_cat a
+		<where>
+			<if test='cat_cd != null and !"".equals(cat_cd)'>
+			AND cat_cd = CONCAT('%', #{cat_cd}, '%')
+			</if>
+			<if test='cat_nm != null and !"".equals(cat_nm)'>
+			AND cat_nm LIKE CONCAT('%', #{cat_nm}, '%')
+			</if>
+			<if test='p_cat_cd != null and !"".equals(p_cat_cd)'>
+			AND p_cat_cd = #{p_cat_cd}
+			</if>
+		</where>	  
+		ORDER BY cat_cd, cat_nm
+	</select>
+	
+	<select id="getCmCategoryOne" parameterType="cmcdBean" resultType="cmcdBean">
+		SELECT 
+			cat_cd
+			, cat_nm
+			, p_cat_cd
+			, cat_desc
+			, mdfy_flag
+			, use_yn, gen_by, gen_dt
+			, cat_attr_1
+			, cat_attr_2
+			, cat_attr_3
+			, cat_attr_4
+			, cat_attr_5
+		FROM t_cm_cat a
+		WHERE cat_cd = #{cat_cd}	  
+	</select>
+	
+	<insert id="insertCmCategory" parameterType="cmcdBean">
+		INSERT INTO t_cm_cat (
+			cat_cd, cat_nm, 
+			<if test='p_cat_cd != null and !"".equals(p_cat_cd)'>
+			p_cat_cd, 
+			</if>
+			cat_desc, mdfy_flag
+			, use_yn, gen_by, gen_dt, cat_attr_1, cat_attr_2, cat_attr_3, 
+			cat_attr_4, cat_attr_5
+		) VALUES (
+			#{cat_cd}, #{cat_nm}, 
+			<if test='p_cat_cd != null and !"".equals(p_cat_cd)'>
+			#{p_cat_cd},
+			</if>
+			#{cat_desc}, #{mdfy_flag}
+			, #{use_yn}, 'system', now(), #{cat_attr_1}, #{cat_attr_2}, #{cat_attr_3},
+			#{cat_attr_4}, #{cat_attr_5}
+		)
+	</insert>
+
+	<update id="updateCmCategory" parameterType="cmcdBean">
+		UPDATE t_cm_cat
+		SET 
+			cat_nm 			= #{cat_nm}
+			, p_cat_cd 		= #{p_cat_cd}
+			, cat_desc 		= #{cat_desc} 
+			, mdfy_flag		= #{mdfy_flag} 
+			, use_yn 		= #{use_yn}
+			, mdfy_by 		= 'system'
+			, mdfy_dt 		= now()
+			, cat_attr_1    = #{cat_attr_1}
+			, cat_attr_2    = #{cat_attr_2}
+			, cat_attr_3    = #{cat_attr_3}
+			, cat_attr_4    = #{cat_attr_4}
+			, cat_attr_5    = #{cat_attr_5}
+		WHERE cat_cd = #{cat_cd}
+	</update>
+
+	<delete id="deleteCmCategory" parameterType="cmcdBean">
+		DELETE FROM t_cm_cat
+		WHERE cat_cd = #{cat_cd}
+	</delete>
+	<!-- 				 	-->
+	<!-- 코드 카테고리 		-->
+	<!-- 				 	-->
+
+
+
+
+	<!-- 				 	-->
+	<!-- 코드 		 		-->
+	<!-- 				 	-->
+	<select id="getCmCdList" parameterType="cmcdBean" resultType="cmcdBean">
+		SELECT 
+			a.cat_cd, a.cd, a.cd_val, a.p_cd
+			, a.cd_attr_1, a.cd_attr_2, a.cd_attr_3, a.cd_attr_4, a.cd_attr_5, a.cd_desc
+			, a.disp_ord
+			, a.use_yn
+			, b.cat_nm, b.p_cat_cd, b.mdfy_flag
+			, a.gen_by
+			, TO_CHAR(a.gen_dt, 'YYYY-MM-DD HH24:MM') as gen_dt
+			, a.mdfy_by
+			, TO_CHAR(a.mdfy_dt, 'YYYY-MM-DD HH24:MM') as mdfy_dt
+		FROM t_cm_cd a 
+		INNER JOIN t_cm_cat b 
+			ON a.cat_cd = b.cat_cd
+		<where>
+			<if test='use_yn != null and !"".equals(use_yn)'>
+				AND a.use_yn = #{use_yn} 
+			</if>
+			<if test='cat_cd != null and !"".equals(cat_cd)'>
+				AND UPPER(a.cat_cd) = UPPER(#{cat_cd})
+			</if>
+			<if test='p_cd != null and !"".equals(p_cd)'>
+				AND a.p_cd = #{p_cd}
+			</if>
+			<if test='cd != null and !"".equals(cd)'>
+				AND a.cd = #{cd}
+			</if>
+			<if test='cd_attr_1 != null and !"".equals(cd_attr_1)'>
+				AND a.cd_attr_1 = #{cd_attr_1}
+			</if>
+			<if test='cd_attr_2 != null and !"".equals(cd_attr_2)'>
+				AND a.cd_attr_2 = #{cd_attr_2}
+			</if>
+			<if test='cd_attr_3 != null and !"".equals(cd_attr_3)'>
+				AND a.cd_attr_3 = #{cd_attr_3}
+			</if>
+			<if test='cd_val != null and !"".equals(cd_val)'>
+				AND a.cd_val LIKE CONCAT('%', #{cd_val}, '%')
+			</if>
+		</where>
+		ORDER BY a.cat_cd, b.cat_nm, a.disp_ord ASC, a.cd
+	</select>
+	
+	<select id="getCmCdOne" parameterType="cmcdBean" resultType="cmcdBean">
+		SELECT a.cat_cd, a.cd, a.cd_val, a.p_cd
+			, a.cd_attr_1, a.cd_attr_2, a.cd_attr_3, a.cd_attr_4, a.cd_attr_5,  a.cd_desc
+			, a.disp_ord
+			, a.use_yn
+			, b.cat_nm, b.mdfy_flag, b.p_cat_cd
+		FROM t_cm_cd a 
+		INNER JOIN t_cm_cat b 
+			ON a.cat_cd = b.cat_cd
+		WHERE a.cat_cd = #{cat_cd}
+			AND a.cd = #{cd}
+			<if test='use_yn != null and !"".equals(use_yn)'>
+			AND a.use_yn = #{use_yn} 
+			</if>
+	</select>
+	
+	<select id="getCmCdCount" parameterType="cmcdBean" resultType="Integer">
+		SELECT COUNT(*)
+		FROM t_cm_cd a 
+		INNER JOIN t_cm_cat b ON a.cat_cd = b.cat_cd
+		WHERE a.cat_cd = #{cat_cd}
+	</select>
+		
+	<insert id="insertCmCd" parameterType="cmcdBean">
+		INSERT INTO t_cm_cd (
+			cat_cd, cd, cd_val
+			<if test='p_cd != null and !"".equals(p_cd)'>
+			, p_cd
+			</if>
+			, cd_desc, disp_ord
+			, cd_attr_1, cd_attr_2, cd_attr_3, cd_attr_4, cd_attr_5, 
+			 use_yn, gen_by, gen_dt
+		) VALUES (
+			#{cat_cd}, #{cd}, #{cd_val} 
+			<if test='p_cd != null and !"".equals(p_cd)'>
+			, #{p_cd}
+			</if>
+			, #{cd_desc}, COALESCE(#{disp_ord}, 0)
+			, #{cd_attr_1}, #{cd_attr_2}, #{cd_attr_3}, #{cd_attr_4}, #{cd_attr_5}, 
+			 #{use_yn}, 'system', now()
+		)
+	</insert>
+	
+	<!-- 해당 코드 카테고리 하위 코드들의 정렬 순서를 한칸씩 앞으로(이전 정렬순서보다 큰것들) -->
+	<update id="shiftForwardCmCdOrder" parameterType="cmcdBean">
+		UPDATE t_cm_cd
+		SET disp_ord = disp_ord - 1
+		WHERE disp_ord &gt; #{before_disp_ord}
+			AND cat_cd = #{cat_cd}		
+	</update>
+	
+	<!-- 해당 코드 카테고리 하위 코드들의 정렬 순서를 한칸씩 뒤로(입력받은 정렬순서보다 큰것들) -->
+	<update id="shiftBackCmCdOrder" parameterType="cmcdBean">
+		UPDATE t_cm_cd
+		SET disp_ord = disp_ord + 1
+		WHERE disp_ord &gt;= #{disp_ord}
+			AND cat_cd = #{cat_cd}		
+	</update>
+	
+	<update id="updateCmCd" parameterType="cmcdBean">
+		UPDATE t_cm_cd
+		SET cd_val 			= #{cd_val}
+			, p_cd 			= #{p_cd}
+			, cd_desc 		= #{cd_desc}
+			, cd_attr_1 	= #{cd_attr_1}
+			, cd_attr_2 	= #{cd_attr_2}
+			, cd_attr_3 	= #{cd_attr_3}
+			, cd_attr_4		= #{cd_attr_4}
+			, cd_attr_5		= #{cd_attr_5} 
+			, disp_ord 		= COALESCE(#{disp_ord}, 0)
+			, use_yn 		= #{use_yn}
+			, mdfy_by 		= 'system'
+			, mdfy_dt 		= now()
+		WHERE cat_cd = #{cat_cd}
+			AND cd = #{cd}
+	</update>
+	
+	<delete id="deleteCmCd" parameterType="cmcdBean">
+		DELETE FROM t_cm_cd
+		WHERE cat_cd = #{cat_cd}
+			AND cd = #{cd}
+	</delete>
+	<!-- 				 	-->
+	<!-- 코드 		 		-->
+	<!-- 				 	-->
+	
+	<select id="getCode" parameterType="cmcdBean" resultType="cmcdBean">
+		SELECT * 
+ 		  FROM t_cm_cd
+		 WHERE cat_cd = #{cat_cd}
+  	       AND cd = #{cd}
+	</select>
+	
+	
+</mapper>

@@ -1,0 +1,1249 @@
+<?xml version="1.0" encoding="UTF-8"?><!--Converted at: Thu Jun 08 19:35:59 KST 2017-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="layoutSqlMap">
+
+	<!-- 데이터소스 목록 -->
+	<select id="getDtsrcList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT
+			ROW_NUMBER() OVER (ORDER BY a.dtsrc_seq DESC) AS rn
+			, a.*
+		FROM (
+			SELECT
+				t1.dtsrc_seq
+				, t1.dtsrc_nm
+				, t1.avail_pnl_kd
+				, cd1.cd_val AS avail_pnl_kd_nm
+				, t1.query_data
+				, t1.dtsrc_desc
+				, t1.edit_avail_yn
+				, t1.de_lmt_rng
+				, cd2.cd_val AS de_lmt_rng_nm
+			FROM t_dtsrc_info t1
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'PNL_KD'
+					AND cd1.cd = t1.avail_pnl_kd
+			LEFT OUTER JOIN t_cm_cd cd2
+				ON cd1.cat_cd = 'DE_LMT_RNG_CD'
+					AND cd1.cd = t1.de_lmt_rng
+			WHERE 1=1
+			<include refid="getDtsrcListWhereSQL"></include>
+		) a
+	</select>
+	
+	<sql id="getDtsrcListWhereSQL" >
+		<if test='avail_pnl_kd != null and !"".equals(avail_pnl_kd)'>
+			AND t1.avail_pnl_kd = #{avail_pnl_kd}
+		</if>
+		<if test='dtsrc_nm != null and !"".equals(dtsrc_nm)'>
+			AND t1.dtsrc_nm LIKE CONCAT('%', #{dtsrc_nm}, '%')
+		</if>
+	</sql>
+	
+ 	<!-- 데이터소스 목록 갯수 -->
+	<select id="getDtsrcListCount" parameterType="layoutBean" resultType="int">
+		SELECT 
+			COUNT(*)
+		FROM t_dtsrc_info t1
+		WHERE 1=1
+		<include refid="getDtsrcListWhereSQL"></include>
+	</select>
+	
+	<!-- 데이터소스 단일 -->
+	<select id="getDtsrc" parameterType="layoutBean" resultType="layoutBean">
+		SELECT
+			t1.dtsrc_seq
+			, t1.dtsrc_nm
+			, t1.avail_pnl_kd
+			, cd1.cd_val AS avail_pnl_kd_nm
+			, t1.avail_pnl_kd as pnl_kd
+			, t1.query_data
+			, t1.dtsrc_desc
+			, t1.edit_avail_yn
+			, t1.de_lmt_rng
+			, cd2.cd_val AS de_lmt_rng_nm
+		FROM t_dtsrc_info t1
+		LEFT OUTER JOIN t_cm_cd cd1
+			ON cd1.cat_cd = 'PNL_KD'
+				AND cd1.cd = t1.avail_pnl_kd
+		LEFT OUTER JOIN t_cm_cd cd2
+			ON cd1.cat_cd = 'DE_LMT_RNG_CD'
+				AND cd1.cd = t1.de_lmt_rng
+		WHERE t1.dtsrc_seq = #{dtsrc_seq}
+	</select>
+	
+	<!-- 데이터소스 추가 -->
+	<insert id="insertDtsrc" parameterType="layoutBean" useGeneratedKeys="true" keyProperty="dtsrc_seq">
+		INSERT INTO t_dtsrc_info (
+			dtsrc_nm
+			, avail_pnl_kd
+			, query_data
+			, dtsrc_desc
+			, de_lmt_rng
+			, gen_by
+		) VALUES (
+			#{dtsrc_nm}
+			, #{avail_pnl_kd}
+			, #{query_data}
+			, #{dtsrc_desc}
+			, #{de_lmt_rng}
+			, #{login_user_id}
+		)
+	</insert>
+	
+	<!-- 데이터소스 수정-->
+	<update id="updateDtsrc" parameterType="layoutBean">
+		UPDATE t_dtsrc_info		
+		SET
+			dtsrc_nm				= #{dtsrc_nm}
+			, avail_pnl_kd 			= #{avail_pnl_kd}
+			, query_data			= #{query_data}
+			, dtsrc_desc			= #{dtsrc_desc}
+			, de_lmt_rng			= #{de_lmt_rng}
+			, mdfy_by				= #{login_user_id}
+			, mdfy_dt				= now()
+		WHERE dtsrc_seq = #{dtsrc_seq}	
+	</update>
+	
+	<!-- 데이터소스 삭제-->
+	<delete id="deleteDtsrc" parameterType="layoutBean">
+		DELETE FROM t_dtsrc_info
+		WHERE dtsrc_seq = #{dtsrc_seq}	
+	</delete>
+	
+	<!-- 데이터소스컬럼정보 목록 -->
+	<select id="getDtsrcClmnList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT
+			t1.dtsrc_clmn_seq
+			, t1.dtsrc_seq
+			, t1.clmn_id
+			, t1.clmn_nm
+		FROM t_dtsrc_clmn_info t1
+		WHERE t1.dtsrc_seq = #{dtsrc_seq}
+	</select>
+	
+	<!-- 데이터소스컬럼정보 추가 -->
+	<insert id="insertDtsrcClmn" parameterType="layoutBean">
+		INSERT INTO t_dtsrc_clmn_info (
+			dtsrc_seq
+			, clmn_id
+			, clmn_nm
+		) VALUES (
+			#{dtsrc_seq}
+			, #{clmn_id}
+			, #{clmn_nm}
+		)
+<!-- 		WITH upsert AS ( -->
+<!-- 			SELECT #{dtsrc_seq} dtsrc_seq, #{clmn_id} clmn_id, #{clmn_id} clmn_nm -->
+<!-- 				 ,  COALESCE((SELECT seperate_clmn_yn FROM t_dtsrc_clmn_info WHERE dtsrc_seq = #{dtsrc_seq} AND clmn_id = #{clmn_id}), 'N') seperate_clmn_yn -->
+<!-- 		), UPDATE_SQL AS ( -->
+<!-- 			UPDATE t_dtsrc_clmn_info a1 -->
+<!-- 			   SET clmn_nm			= upsert.clmn_id -->
+<!-- 				 , seperate_clmn_yn	= upsert.seperate_clmn_yn -->
+<!-- 			  from upsert -->
+<!-- 			 where a1.dtsrc_seq	= upsert.dtsrc_seq  -->
+<!-- 			   and a1.clmn_id		= upsert.clmn_id -->
+<!-- 		) -->
+<!-- 		insert into t_dtsrc_clmn_info(dtsrc_seq, clmn_id, clmn_nm, seperate_clmn_yn) -->
+<!-- 		select dtsrc_seq, clmn_id, clmn_nm, seperate_clmn_yn -->
+<!-- 		  from upsert  -->
+<!-- 		 where not EXISTS( -->
+<!-- 		 	select dtsrc_seq, clmn_id  -->
+<!-- 		 	  from t_dtsrc_clmn_info a1  -->
+<!-- 		 	 where a1.dtsrc_seq = upsert.dtsrc_seq -->
+<!-- 		 	   and a1.clmn_id	= upsert.clmn_id -->
+<!-- 		 ) -->
+<!-- 		 ; -->
+	</insert>
+	
+	<!-- 데이터소스 수정-->
+	<update id="updateDtsrcClmn" parameterType="hmap">
+		UPDATE t_dtsrc_clmn_info		
+		SET
+			clmn_nm				= #{clmn_nm}
+		WHERE dtsrc_clmn_seq = CAST(#{dtsrc_clmn_seq} AS INT)
+	</update>
+	
+	<!-- 데이터소스컬럼정보 삭제-->
+	<delete id="deleteDtsrcClmn" parameterType="layoutBean">
+		DELETE FROM t_dtsrc_clmn_info
+		WHERE dtsrc_seq = #{dtsrc_seq}	
+	</delete>
+	
+	<!-- 데이터소스 복제 -->
+	<insert id="copyDtsrc" parameterType="layoutBean" useGeneratedKeys="true" keyProperty="dtsrc_seq">
+		INSERT INTO t_dtsrc_info
+				 ( dtsrc_nm
+				 , avail_pnl_kd
+				 , query_data
+				 , dtsrc_desc
+				 , edit_avail_yn
+				 , gen_by ) 
+			SELECT CONCAT('Copy of ', dtsrc_nm)
+				 , avail_pnl_kd
+				 , query_data
+				 , dtsrc_desc
+				 , edit_avail_yn
+				 , #{login_user_id}
+			  FROM t_dtsrc_info
+			 WHERE dtsrc_seq = #{dtsrc_seq_org}
+	</insert>
+	<!-- 데이터소스컬럼정보 복제 -->
+	<insert id="copyDtsrcClmn" parameterType="layoutBean">
+		INSERT INTO t_dtsrc_clmn_info 
+				 ( dtsrc_seq
+				 , clmn_id
+				 , clmn_nm)
+		SELECT #{dtsrc_seq}
+			 , clmn_id
+			 , clmn_nm
+		  FROM t_dtsrc_clmn_info
+		 WHERE dtsrc_seq = #{dtsrc_seq_org}
+	</insert>
+	
+<!-- END : 데이터 소스 -->
+	
+	<!-- 패널 목록 -->
+	<select id="getPnlList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.pnl_seq DESC) AS rn
+			, a.*
+		FROM (		
+			SELECT
+				t1.pnl_seq
+				, t1.pnl_nm
+				, t1.pnl_kd
+				, cd1.cd_val AS pnl_kd_nm
+				, t1.seperate_clmn_id
+				, t1.pnl_rfsh_interval/1000 as pnl_rfsh_interval
+			FROM t_pnl_info t1
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'PNL_KD'
+					AND cd1.cd = t1.pnl_kd
+			WHERE 1=1
+			<include refid="getPnlListWhereSQL"></include>
+		) a
+	</select>
+	
+	<sql id="getPnlListWhereSQL" >
+		<if test='pnl_kd != null and !"".equals(pnl_kd)'>
+			AND t1.pnl_kd = #{pnl_kd}
+		</if>
+		<if test='pnl_nm != null and !"".equals(pnl_nm)'>
+			AND t1.pnl_nm LIKE CONCAT('%', #{pnl_nm}, '%')
+		</if>
+	</sql>
+	
+ 	<!-- 패널 목록 갯수 -->
+	<select id="getPnlListCount" parameterType="layoutBean" resultType="int">
+		SELECT 
+			COUNT(*)
+		FROM t_pnl_info t1
+		WHERE 1=1
+		<include refid="getPnlListWhereSQL"></include>
+	</select>
+	
+	<!-- 패널 단일 -->
+	<select id="getPnl" parameterType="layoutBean" resultType="layoutBean">
+		SELECT
+			t1.pnl_seq
+			, t1.pnl_nm
+			, t1.pnl_kd
+			, cd1.cd_val AS pnl_kd_nm
+			, t1.seperate_clmn_id
+			, t1.pnl_rfsh_interval/1000 as pnl_rfsh_interval
+			, t2.query_data
+			, t2.de_lmt_rng
+			, t1.dtsrc_seq
+			, t2.dtsrc_desc
+		FROM t_pnl_info t1
+		INNER JOIN t_dtsrc_info t2
+			ON t1.dtsrc_seq = t2.dtsrc_seq
+		LEFT OUTER JOIN t_cm_cd cd1
+			ON cd1.cat_cd = 'PNL_KD'
+				AND cd1.cd = t1.pnl_kd
+		WHERE t1.pnl_seq = #{pnl_seq}
+	</select>
+	
+	<!-- 패널 추가 -->
+	<insert id="insertPnl" parameterType="layoutBean">
+		INSERT INTO t_pnl_info (
+			pnl_nm
+			, dtsrc_seq
+			, pnl_kd
+			, pnl_rfsh_interval
+			, gen_by
+		) VALUES (
+			#{pnl_nm}
+			, #{dtsrc_seq}
+			, #{pnl_kd}
+			, #{pnl_rfsh_interval}*1000
+			, #{login_user_id}
+		)
+	</insert>
+	
+	<!-- 패널 수정-->
+	<update id="updatePnl" parameterType="layoutBean">
+		UPDATE t_pnl_info
+		SET
+			pnl_nm					= #{pnl_nm}
+			, dtsrc_seq 			= #{dtsrc_seq}
+			, pnl_rfsh_interval		= #{pnl_rfsh_interval}*1000
+			, seperate_clmn_id		= #{seperate_clmn_id}
+			, mdfy_by				= #{login_user_id}
+			, mdfy_dt				= now()
+		WHERE pnl_seq = #{pnl_seq}
+	</update>
+	
+	<!-- 패널 삭제-->
+	<delete id="deletePnl" parameterType="layoutBean">
+		DELETE FROM t_pnl_info
+		<where>
+			<if test='pnl_seq != null and !"".equals(pnl_seq)'>
+			AND pnl_seq = #{pnl_seq}
+			</if>
+			<if test='(pnl_seq == null or "".equals(pnl_seq)) and dtsrc_seq != null and !"".equals(dtsrc_seq)'>
+			AND pnl_seq IN (SELECT pnl_seq FROM t_pnl_info WHERE dtsrc_seq = #{dtsrc_seq})
+			</if>
+		</where>
+	</delete>
+	
+	<!-- 패널 옵션 목록 -->
+	<select id="getPnlOptList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT 
+		ROW_NUMBER() OVER (ORDER BY a.pnl_opt_seq ASC) AS rn
+				, a.*
+		FROM (
+			SELECT
+				t1.pnl_opt_seq
+				, t1.pnl_seq
+				, t1.pnl_opt_cd
+				, cd1.cd
+				, cd1.cat_cd
+				, cd1.p_cd
+				, cd1.cd_val AS pnl_opt_cd_nm
+				, cd1.cd_desc AS cd_desc
+				, cd1.cd_attr_1
+				, cd1.cd_attr_2
+				, t1.pnl_opt_nm
+				, t1.pnl_opt_cntx
+			FROM (
+				SELECT a.pnl_opt_seq
+						, a.pnl_seq
+						, a.pnl_opt_cd 
+						, a.pnl_opt_nm
+						, a.pnl_opt_cntx
+				FROM t_pnl_opt_info a
+				WHERE a.pnl_seq = #{pnl_seq}
+			)t1
+			RIGHT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'PNL_OPT_CD'
+					AND cd1.cd = t1.pnl_opt_cd
+			WHERE 1 = 1
+				AND cd1.cat_cd = 'PNL_OPT_CD'
+				<if test='avail_pnl_kd != null and !"".equals(avail_pnl_kd)'>
+				AND cd1.p_cd = #{avail_pnl_kd}
+				</if>
+				<if test='pnl_kd != null and !"".equals(pnl_kd)'>
+				AND cd1.p_cd = #{pnl_kd}
+				</if>
+		) a
+		ORDER BY a.pnl_opt_cd
+	</select>
+	
+	<!-- 패널 옵션 추가 -->
+	<insert id="insertPnlOpt" parameterType="hmap">
+		INSERT INTO t_pnl_opt_info (
+			pnl_seq
+			, pnl_opt_cd
+			, pnl_opt_nm
+			, pnl_opt_cntx
+		) VALUES (
+			CAST(#{pnl_seq} AS INT)
+			, #{pnl_opt_cd}
+			, #{pnl_opt_nm}
+			, #{pnl_opt_cntx}
+		)
+	</insert>
+	
+	<!-- 패널 옵션 삭제 -->
+	<delete id="deletePnlOpt" parameterType="layoutBean">
+		DELETE FROM t_pnl_opt_info
+		<where>
+			<if test='pnl_seq != null and !"".equals(pnl_seq)'>
+			AND pnl_seq = #{pnl_seq}
+			</if>
+			<if test='(pnl_seq == null or "".equals(pnl_seq)) and dtsrc_seq != null and !"".equals(dtsrc_seq)'>
+			AND pnl_seq IN (SELECT pnl_seq FROM t_pnl_info WHERE dtsrc_seq = #{dtsrc_seq})
+			</if>
+		</where>
+	</delete>
+	
+	<!-- 패널 이벤트 목록 -->
+	<select id="getPnlEvtList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.pnl_evt_seq ASC) AS rn
+			, a.*
+		FROM (
+			SELECT
+				t1.pnl_evt_seq
+				, t1.pnl_seq
+				, t1.pnl_evt_kd
+				, cd1.cd_val AS pnl_evt_kd_nm
+				, t1.pnl_occur_evt
+				, cd2.cd_val AS pnl_occur_evt_nm
+				, t1.pnl_evt_trgt
+				, cd3.cd_val AS pnl_evt_trgt_nm
+				, t1.pnl_evt_prmtr
+			FROM t_pnl_evt_info t1
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'PNL_EVT_KD' 
+					AND cd1.cd = t1.pnl_evt_kd
+			LEFT OUTER JOIN t_cm_cd cd2
+				ON cd2.cat_cd = 'PNL_OCCUR_EVT' 
+					AND cd2.cd = t1.pnl_evt_kd
+			LEFT OUTER JOIN t_cm_cd cd3
+				ON cd3.cat_cd = 'PNL_EVT_TRGT' 
+					AND cd3.cd = t1.pnl_evt_trgt
+			WHERE t1.pnl_seq = #{pnl_seq}
+		) a
+	</select>
+	
+	<!-- 패널 이벤트 추가 -->
+	<insert id="insertPnlEvt" parameterType="hmap">
+		INSERT INTO t_pnl_evt_info (
+			pnl_seq
+			, pnl_evt_kd
+			, pnl_occur_evt
+			, pnl_evt_trgt
+			, pnl_evt_prmtr
+		) VALUES (
+			CAST(#{pnl_seq} AS INT)
+			, #{pnl_evt_kd}
+			, #{pnl_occur_evt}
+			, #{pnl_evt_trgt}
+			, #{pnl_evt_prmtr}
+		)
+	</insert>
+	
+	<!-- 패널 이벤트 삭제 -->
+	<delete id="deletePnlEvt" parameterType="layoutBean">
+		DELETE FROM t_pnl_evt_info
+		<where>
+			<if test='pnl_seq != null and !"".equals(pnl_seq)'>
+			AND pnl_seq = #{pnl_seq}
+			</if>
+			<if test='(pnl_seq == null or "".equals(pnl_seq)) and dtsrc_seq != null and !"".equals(dtsrc_seq)'>
+			AND pnl_seq IN (SELECT pnl_seq FROM t_pnl_info WHERE dtsrc_seq = #{dtsrc_seq})
+			</if>
+		</where>
+	</delete>
+	
+	<!-- 패널 SVG 목록 -->
+	<select id="getPnlSVGList" parameterType="layoutBean" resultType="hmap">
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.pnl_svg_seq ASC) AS rn
+			, a.*
+		FROM (
+			SELECT
+				t1.pnl_svg_seq
+				, t1.pnl_seq
+				, t1.svg_obj_kd
+				, cd1.cd_val AS svg_obj_kd_nm
+				, t1.svg_clmn_id
+				, t1.svg_obj_nm
+				, t1.svg_img
+				, t1.svg_img_nm
+				, t1.svg_x_crdnt
+				, t1.svg_y_crdnt
+				, t1.svg_wdth
+				, t1.svg_hght
+				, t1.svg_deg
+				, t1.svg_opt
+				, cd1.cat_cd
+				, cd1.cd				
+			FROM t_pnl_svg_info t1
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'SVG_OBJ_KD' 
+					AND cd1.cd = t1.svg_obj_kd
+			<where>
+				<if test='pnl_seq != null and !"".equals(pnl_seq)'>
+				AND t1.pnl_seq = #{pnl_seq}
+				</if>
+				<if test='pnl_svg_seq != null and !"".equals(pnl_svg_seq)'>
+				AND t1.pnl_svg_seq = #{pnl_svg_seq}
+				</if>
+			</where>
+		) a
+	</select>
+	
+	<!-- 패널 SVG -->
+	<select id="getPnlSVG" parameterType="layoutBean" resultType="layoutBean">
+		SELECT
+			t1.pnl_svg_seq
+			, t1.pnl_seq
+			, t1.svg_obj_kd
+			, cd1.cd_val AS svg_obj_kd_nm
+			, t1.svg_clmn_id
+			, t1.svg_obj_nm
+			, t1.svg_img
+			, t1.svg_img_nm
+			, t1.svg_x_crdnt
+			, t1.svg_y_crdnt
+			, t1.svg_wdth
+			, t1.svg_hght
+			, t1.svg_deg
+			, t1.svg_opt
+		FROM t_pnl_svg_info t1
+		LEFT OUTER JOIN t_cm_cd cd1
+			ON cd1.cat_cd = 'SVG_OBJ_KD' 
+				AND cd1.cd = t1.svg_obj_kd
+		WHERE t1.pnl_svg_seq = #{pnl_svg_seq}
+	</select>
+	
+	<!-- 패널 SVG 추가 -->
+	<insert id="insertPnlSvg" parameterType="hmap">
+		INSERT INTO t_pnl_svg_info (
+			pnl_seq
+			, svg_obj_kd
+			, svg_clmn_id
+			, svg_obj_nm
+			, svg_img
+			, svg_img_nm
+			, svg_x_crdnt
+			, svg_y_crdnt
+			, svg_wdth
+			, svg_hght
+			, svg_deg
+			, svg_opt
+		) VALUES (
+			CAST(#{pnl_seq} AS INT)
+			, #{svg_obj_kd}
+			, #{svg_clmn_id}
+			, #{svg_obj_nm}
+			, #{svg_img}
+			, #{svg_img_nm}
+			, CAST(#{svg_x_crdnt} AS INT)
+			, CAST(#{svg_y_crdnt} AS INT)
+			, CAST(#{svg_wdth} AS INT)
+			, CAST(#{svg_hght} AS INT)
+			, CAST(#{svg_deg} AS INT)
+			, #{svg_opt}
+		)
+	</insert>
+	
+	<!-- 패널 SVG 삭제 -->
+	<delete id="deletePnlSvg" parameterType="layoutBean">
+		DELETE FROM t_pnl_svg_info
+		<where>
+			<if test='pnl_seq != null and !"".equals(pnl_seq)'>
+			AND pnl_seq = #{pnl_seq}
+			</if>
+			<if test='(pnl_seq == null or "".equals(pnl_seq)) and dtsrc_seq != null and !"".equals(dtsrc_seq)'>
+			AND pnl_seq IN (SELECT pnl_seq FROM t_pnl_info WHERE dtsrc_seq = #{dtsrc_seq})
+			</if>
+		</where>
+	</delete>
+	
+	
+	<!-- 패널 복제 -->
+	<insert id="copyPnl" parameterType="layoutBean" useGeneratedKeys="true" keyProperty="pnl_seq">
+		INSERT INTO t_pnl_info (
+			pnl_nm
+			, dtsrc_seq
+			, pnl_kd
+			, seperate_clmn_id
+			, pnl_rfsh_interval
+			, gen_by
+		) 
+		SELECT CONCAT('Copy of ', pnl_nm)
+			 , dtsrc_seq
+			 , pnl_kd
+			 , seperate_clmn_id
+			 , pnl_rfsh_interval
+			 , #{login_user_id}
+		  FROM t_pnl_info
+		 WHERE pnl_seq = #{pnl_seq_org}
+	</insert>
+	
+	<!-- 패널 옵션 복제 -->
+	<insert id="copyPnlOpt" parameterType="hmap">
+		INSERT INTO t_pnl_opt_info (
+			pnl_seq
+			, pnl_opt_cd
+			, pnl_opt_nm
+			, pnl_opt_cntx
+		)
+		SELECT #{pnl_seq}
+			 , pnl_opt_cd
+			 , pnl_opt_nm
+			 , pnl_opt_cntx
+		  FROM t_pnl_opt_info
+		 WHERE pnl_seq = #{pnl_seq_org}
+	</insert>
+	
+	<!-- 패널 이벤트 복제 -->
+	<insert id="copyPnlEvt" parameterType="hmap">
+		INSERT INTO t_pnl_evt_info (
+			pnl_seq
+			, pnl_evt_kd
+			, pnl_occur_evt
+			, pnl_evt_trgt
+			, pnl_evt_prmtr
+		)
+		SELECT #{pnl_seq}
+			 , pnl_evt_kd
+			 , pnl_occur_evt
+			 , pnl_evt_trgt
+			 , pnl_evt_prmtr
+		  FROM t_pnl_evt_info
+		 WHERE pnl_seq = #{pnl_seq_org}
+	</insert>
+	
+	<!-- 패널 SVG 복제 -->
+	<insert id="copyPnlSvg" parameterType="hmap">
+		INSERT INTO t_pnl_svg_info (
+			pnl_seq
+			, svg_obj_kd
+			, svg_clmn_id
+			, svg_obj_nm
+			, svg_img
+			, svg_img_nm
+			, svg_x_crdnt
+			, svg_y_crdnt
+			, svg_wdth
+			, svg_hght
+			, svg_deg
+			, svg_opt
+		)
+		SELECT #{pnl_seq}
+			 , svg_obj_kd
+			 , svg_clmn_id
+			 , svg_obj_nm
+			 , svg_img
+			 , svg_img_nm
+			 , svg_x_crdnt
+			 , svg_y_crdnt
+			 , svg_wdth
+			 , svg_hght
+			 , svg_deg
+			 , svg_opt
+		  FROM t_pnl_svg_info
+		 WHERE pnl_seq = #{pnl_seq_org}
+	</insert>
+<!-- END : 패널 관리 -->
+	
+	<!-- 대시보드 목록 -->
+	<select id="getDsbdList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.gen_dt DESC) AS rn
+			, a.*
+		FROM (		
+			SELECT
+				t1.dsbd_seq
+				, t1.dsbd_nm
+				, t1.dsbd_kd
+				, cd1.cd_val 				AS dsbd_kd_nm
+				, t1.dsbd_rfsh_interval/1000 as dsbd_rfsh_interval
+				, t1.tree_use_yn
+				, t1.dsbd_de_srch_yn
+				, t1.var_use_yn
+				, '-' 						AS rllng_yn
+				, '-' 						AS rllng_drc
+				, '-' 						AS rllng_drc_nm
+				, '0' 						AS page_show_tm
+				, '0' 						AS rllng_move_tm
+				, t1.gen_dt
+			FROM t_dsbd_info t1
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'DSBD_KD' 
+					AND cd1.cd = t1.dsbd_kd
+			UNION ALL
+			SELECT t1.dsbd_gr_seq 		AS dsbd_seq
+				 , t1.dsbd_gr_nm 		AS dsbd_nm
+				 , 'D_GRP' 				AS dsbd_kd
+				 , cd1.cd_val 			AS dsbd_kd_nm
+				 , null 				AS dsbd_rfsh_interval
+				 , '-' 					AS tree_use_yn
+				 , '-' 					AS dsbd_de_srch_yn
+				 , '-' 					AS var_use_yn
+				 , t1.rllng_yn
+				 , t1.rllng_drc
+				 , cd2.cd_val 			AS rllng_drc_nm
+				 , t1.page_show_tm
+				 , t1.rllng_move_tm
+				 , t1.gen_dt
+			FROM t_dsbd_gr_info t1
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'DSBD_KD' 
+					AND cd1.cd = 'D_GRP'
+			LEFT OUTER JOIN t_cm_cd cd2
+				ON cd2.cat_cd = 'RLLNG_DRC' 
+					AND cd2.cd = t1.rllng_drc
+		) a
+		WHERE 1=1
+		<include refid="getDsbdListWhereSQL"></include>
+	</select>
+	
+	<sql id="getDsbdListWhereSQL" >
+		<if test='dsbd_kd != null and !"".equals(dsbd_kd)'>
+			AND a.dsbd_kd = #{dsbd_kd}
+		</if>
+		<if test='dsbd_nm != null and !"".equals(dsbd_nm)'>
+			AND a.dsbd_nm LIKE CONCAT('%', #{dsbd_nm}, '%')
+		</if>
+	</sql>
+	
+ 	<!-- 대시보드 목록 갯수 -->
+	<select id="getDsbdListCount" parameterType="layoutBean" resultType="int">
+		SELECT 
+			COUNT(*)
+		FROM t_dsbd_info t1
+		WHERE 1=1
+		<include refid="getDsbdListWhereSQL"></include>
+	</select>
+	
+	<!-- 대시보드 맵핑 리스트 -->
+	<select id="getDsbdMappList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT t1.dsbd_seq
+			 , t1.dsbd_nm
+			 , t2.rllng_ord
+			 , CASE WHEN t2.dsbd_seq IS NOT NULL THEN 'true' ELSE 'false' END AS checked
+		FROM t_dsbd_info t1
+		LEFT OUTER JOIN t_dsbd_gr_mapp t2
+			ON t1.dsbd_seq = t2.dsbd_seq
+				AND t2.dsbd_gr_seq = #{dsbd_gr_seq}
+		ORDER BY t1.dsbd_seq
+	</select>
+	
+	<!-- 대시보드 단일 -->
+	<select id="getDsbd" parameterType="layoutBean" resultType="layoutBean">
+		SELECT a.*
+		FROM (		
+			SELECT
+				t1.dsbd_seq
+				, t1.dsbd_nm
+				, t1.dsbd_kd
+				, cd1.cd_val 				AS dsbd_kd_nm
+				, t1.dsbd_rfsh_interval/1000 as dsbd_rfsh_interval
+				, t1.tree_use_yn
+				, t1.dsbd_de_srch_yn
+				, t1.var_use_yn
+				, '' 						AS rllng_yn
+				, '' 						AS rllng_drc
+				, '' 						AS rllng_drc_nm
+				, '0' 						AS page_show_tm
+				, '0' 						AS rllng_move_tm
+				, t1.gen_dt
+			FROM t_dsbd_info t1
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'DSBD_KD' 
+					AND cd1.cd = t1.dsbd_kd
+			WHERE t1.dsbd_kd = #{dsbd_kd}
+				AND t1.dsbd_seq = #{dsbd_seq} 
+			UNION ALL
+			SELECT t1.dsbd_gr_seq 		AS dsbd_seq
+				 , t1.dsbd_gr_nm 		AS dsbd_nm
+				 , 'D_GRP' 				AS dsbd_kd
+				 , cd1.cd_val 			AS dsbd_kd_nm
+				 , null 				AS dsbd_rfsh_interval
+				 , '-' 					AS tree_use_yn
+				 , '-' 					AS dsbd_de_srch_yn
+				 , '-' 					AS var_use_yn
+				 , t1.rllng_yn
+				 , t1.rllng_drc
+				 , cd2.cd_val 			AS rllng_drc_nm
+				 , t1.page_show_tm/1000 as page_show_tm
+				 , t1.rllng_move_tm/1000 as rllng_move_tm
+				 , t1.gen_dt
+			FROM t_dsbd_gr_info t1
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'DSBD_KD' 
+					AND cd1.cd = 'D_GRP'
+			LEFT OUTER JOIN t_cm_cd cd2
+				ON cd2.cat_cd = 'RLLNG_DRC' 
+					AND cd2.cd = t1.rllng_drc
+			WHERE 'D_GRP' = #{dsbd_kd}
+				AND t1.dsbd_gr_seq = #{dsbd_seq} 
+		) a
+	</select>
+	
+	<!-- 대시보드 추가 -->
+	<insert id="insertDsbd" parameterType="layoutBean" useGeneratedKeys="true" keyProperty="dsbd_seq">
+		INSERT INTO t_dsbd_info (
+			dsbd_nm
+			, dsbd_kd
+			, dsbd_rfsh_interval
+			, tree_use_yn
+			, dsbd_de_srch_yn
+			, var_use_yn
+			, gen_by
+		) VALUES (
+			#{dsbd_nm}
+			, #{dsbd_kd}
+			, #{dsbd_rfsh_interval}*1000
+			, #{tree_use_yn}
+			, #{dsbd_de_srch_yn}
+			, #{var_use_yn}
+			, #{login_user_id}
+		)
+	</insert>
+	
+	<!-- 대시보드 수정-->
+	<update id="updateDsbd" parameterType="layoutBean">
+		UPDATE t_dsbd_info
+		SET
+			dsbd_nm					= #{dsbd_nm}
+			, dsbd_kd 				= #{dsbd_kd}
+			, dsbd_rfsh_interval	= #{dsbd_rfsh_interval}*1000
+			, tree_use_yn			= #{tree_use_yn}
+			, dsbd_de_srch_yn		= #{dsbd_de_srch_yn}
+			, var_use_yn			= #{var_use_yn}
+			, mdfy_by				= #{login_user_id}
+			, mdfy_dt				= now()
+		WHERE dsbd_seq = #{dsbd_seq}
+	</update>
+	
+	<!-- 대시보드 삭제-->
+	<delete id="deleteDsbd" parameterType="layoutBean">
+		DELETE FROM t_dsbd_info
+		WHERE dsbd_seq = #{dsbd_seq}
+			AND 'D_GRP' != #{dsbd_kd}
+	</delete>
+	
+	<!-- 대시보드 그룹 삭제-->
+	<delete id="deleteDsbdGr" parameterType="layoutBean">
+		DELETE FROM t_dsbd_gr_info
+		WHERE dsbd_gr_seq = #{dsbd_seq}
+			AND 'D_GRP' = #{dsbd_kd}
+	</delete>
+	
+	<!-- 대시보드 그룹 단일 -->
+	<select id="getDsbdGr" parameterType="layoutBean" resultType="layoutBean">
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.dsbd_seq ASC) AS rn
+			, a.*
+		FROM (		
+			SELECT t1.dsbd_gr_seq 		AS dsbd_seq
+				 , t1.dsbd_gr_nm 		AS dsbd_nm
+				 , 'D_GRP' 				AS dsbd_kd
+				 , cd1.cd_val 			AS dsbd_kd_nm
+				 , t1.rllng_yn
+				 , t1.rllng_drc
+				 , cd2.cd_val 			AS rllng_drc_nm
+				 , t1.page_show_tm/1000 as page_show_tm
+				 , t1.rllng_move_tm/1000 as rllng_move_tm
+				 , t1.gen_dt
+			FROM t_dsbd_gr_info t1
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'DSBD_KD' 
+					AND cd1.cd = 'D_GRP'
+			LEFT OUTER JOIN t_cm_cd cd2
+				ON cd2.cat_cd = 'RLLNG_DRC' 
+					AND cd2.cd = t1.rllng_drc
+			WHERE 'D_GRP' = #{dsbd_kd}
+				AND t1.dsbd_gr_seq = #{dsbd_seq} 
+		) a
+	</select>
+	
+	<!-- 대시보드 그룹 하위 대시보드 목록 -->
+	<select id="getDsbdGr_dsbdList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.rllng_ord ASC, a.dsbd_seq ASC) AS rn
+			, a.*
+		FROM (		
+			SELECT
+				t1.dsbd_gr_seq
+				, t1.dsbd_seq
+				, t1.rllng_ord
+				, t3.dsbd_nm
+				, t3.dsbd_kd
+				, cd1.cd_val AS dsbd_kd_nm
+				, t3.dsbd_rfsh_interval/1000 as dsbd_rfsh_interval
+				, t3.tree_use_yn
+				, t3.dsbd_de_srch_yn
+				, t3.var_use_yn
+				, t3.gen_dt
+			FROM t_dsbd_gr_mapp t1
+			INNER JOIN t_dsbd_gr_info t2
+				ON t1.dsbd_gr_seq = t2.dsbd_gr_seq
+			INNER JOIN t_dsbd_info t3
+				ON t1.dsbd_seq = t3.dsbd_seq
+			LEFT OUTER JOIN t_cm_cd cd1
+				ON cd1.cat_cd = 'DSBD_KD' 
+					AND cd1.cd = t3.dsbd_kd
+			WHERE t1.dsbd_gr_seq = #{dsbd_seq}
+		) a
+	</select>
+	
+	
+	<!-- 대시보드 패널 매핑 목록 -->
+	<select id="getDsbdPnlMappList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.dsbd_seq ASC, a.pnl_seq ASC) AS rn
+			, a.*
+		FROM (
+			SELECT
+				t1.dsbd_seq
+				, t1.pnl_seq
+				, t3.dtsrc_seq
+				, t3.pnl_kd
+				, t3.pnl_nm
+				, t3.seperate_clmn_id
+				, t3.pnl_rfsh_interval/1000 as pnl_rfsh_interval
+				, t4.query_data
+				, t4.de_lmt_rng
+				, t1.pnl_x_crdnt
+				, t1.pnl_y_crdnt
+				, t1.pnl_wdth
+				, t1.pnl_hght
+				, t2.dsbd_nm
+				, t2.dsbd_rfsh_interval/1000 as dsbd_rfsh_interval
+			FROM t_dsbd_pnl_mapp t1
+			INNER JOIN t_dsbd_info t2
+				ON t1.dsbd_seq = t2.dsbd_seq
+			INNER JOIN t_pnl_info t3
+				ON t1.pnl_seq = t3.pnl_seq
+			INNER JOIN t_dtsrc_info t4
+				ON t3.dtsrc_seq = t4.dtsrc_seq
+			WHERE t1.dsbd_seq = #{dsbd_seq}
+			<if test='pnl_rfsh_interval_chk != null and "Y".equals(pnl_rfsh_interval_chk)'>
+				AND t3.pnl_rfsh_interval IS NULL
+			</if>
+		) a
+	</select>
+	
+	<!-- 대시보드그룹 패널 매핑 목록 -->
+	<select id="getDsbdGrPnlMappList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT 
+			ROW_NUMBER() OVER (ORDER BY a.dsbd_seq ASC, a.pnl_seq ASC) AS rn
+			, a.*
+		FROM (
+			SELECT 
+				t1.dsbd_gr_seq
+				, t1.dsbd_gr_nm
+				, t2.dsbd_seq
+				, t3.dsbd_nm
+				, t3.dsbd_rfsh_interval/1000 as dsbd_rfsh_interval
+				, t3.tree_use_yn
+				, t3.dsbd_de_srch_yn
+				, t3.var_use_yn
+				, t4.pnl_x_crdnt
+				, t4.pnl_y_crdnt
+				, t4.pnl_wdth
+				, t4.pnl_hght
+				, t5.pnl_seq
+				, t5.pnl_kd
+				, t5.pnl_nm
+				, t5.seperate_clmn_id
+				, t5.pnl_rfsh_interval/1000 as pnl_rfsh_interval
+				, t6.dtsrc_seq
+				, t6.dtsrc_nm
+				, t6.query_data
+				, t6.de_lmt_rng
+			FROM t_dsbd_gr_info t1
+			INNER JOIN t_dsbd_gr_mapp t2
+				ON t1.dsbd_gr_seq = t2.dsbd_gr_seq
+			INNER JOIN t_dsbd_info t3
+				ON t2.dsbd_seq = t3.dsbd_seq
+			INNER JOIN t_dsbd_pnl_mapp t4
+				ON t3.dsbd_seq = t4.dsbd_seq
+			INNER JOIN t_pnl_info t5
+				ON t4.pnl_seq = t5.pnl_seq
+			INNER JOIN t_dtsrc_info t6
+				ON t5.dtsrc_seq = t6.dtsrc_seq
+			WHERE t1.dsbd_gr_seq = #{dsbd_seq}
+			<if test='pnl_rfsh_interval_chk != null and "Y".equals(pnl_rfsh_interval_chk)'>
+				AND t5.pnl_rfsh_interval IS NULL
+			</if>
+		) a
+	</select>
+	
+	<!-- 대시보드 패널 매핑 추가 -->
+	<insert id="insertDsbdPnlMapp" parameterType="hmap">
+		INSERT INTO t_dsbd_pnl_mapp (
+			dsbd_seq
+			, pnl_seq
+			, pnl_x_crdnt
+			, pnl_y_crdnt
+			, pnl_wdth
+			, pnl_hght
+		) VALUES (
+			CAST(#{dsbd_seq} AS INT)
+			, CAST(#{pnl_seq} AS INT)
+			, CAST(#{pnl_x_crdnt} AS INT)
+			, CAST(#{pnl_y_crdnt} AS INT)
+			, CAST(#{pnl_wdth} AS INT)
+			, CAST(#{pnl_hght} AS INT)
+		)
+	</insert>
+	
+	<!-- 대시보드 패널 매핑 삭제-->
+	<delete id="deleteDsbdPnlMapp" parameterType="layoutBean">
+		DELETE FROM t_dsbd_pnl_mapp
+		<where>
+			<if test='dsbd_seq != null and !"".equals(dsbd_seq)'>
+			AND dsbd_seq = #{dsbd_seq}
+			</if>
+			<if test='(dsbd_seq == null or "".equals(dsbd_seq)) and pnl_seq != null and !"".equals(pnl_seq)'>
+			AND pnl_seq = #{pnl_seq}
+			</if>
+			<if test='(pnl_seq == null or "".equals(pnl_seq)) and dtsrc_seq != null and !"".equals(dtsrc_seq)'>
+			AND pnl_seq IN (SELECT pnl_seq FROM t_pnl_info WHERE dtsrc_seq = #{dtsrc_seq})
+			</if>
+		</where>
+	</delete>
+	
+	<!-- 메뉴 조회 -->
+	<select id="getMappingTargetMenu" parameterType="layoutBean" resultType="layoutBean">
+		SELECT a1.menu_no
+			, a1.menu_nm
+			, COALESCE(a2.dsbd_seq, a2.dsbd_gr_seq) as dsbd_seq
+			, CASE WHEN a2.dsbd_seq IS NULL AND a2.dsbd_gr_seq IS NULL
+				THEN NULL
+			WHEN a2.dsbd_seq IS NULL AND a2.dsbd_gr_seq IS NOT NULL
+				THEN 'D_GRP'
+				ELSE (SELECT dsbd_kd FROM t_dsbd_info WHERE dsbd_seq = a2.dsbd_seq)
+			END AS dsbd_kd
+		FROM t_menu_info a1
+		LEFT OUTER JOIN t_dsbd_menu_mapp a2
+			ON a1.menu_no = a2.menu_no
+		WHERE a1.use_yn = 'Y'
+			AND a1.menu_addr = '/layout/mvpage.do'
+		ORDER BY a1.menu_no ASC
+	</select>
+	
+	<!-- 대시보드-메뉴 맵핑 정보 삭제 -->
+	<delete id="deleteDsbdMenuMapp" parameterType="layoutBean">
+		DELETE FROM t_dsbd_menu_mapp
+		<where>
+			1 = 1
+			<if test='dsbd_kd != null and !"".equals(dsbd_seq)'>
+			AND dsbd_seq = CAST(#{dsbd_seq} AS INT)
+			</if>
+		</where>
+	</delete>
+	
+	<!-- 대시보드-그룹 메뉴 맵핑 정보 삭제 -->
+	<delete id="deleteDsbdGrMenuMapp" parameterType="layoutBean">
+		DELETE FROM t_dsbd_menu_mapp
+		<where>
+			1 = 1
+			<if test='dsbd_kd != null and !"".equals(dsbd_seq)'>
+			AND dsbd_gr_seq = CAST(#{dsbd_seq} AS INT)
+			</if>
+		</where>
+	</delete>
+	
+	
+	<!-- 대시보드-선택된 메뉴 맵핑 정보 삭제 -->
+	<delete id="deleteDsbdSelMenuMapp" parameterType="layoutBean">
+		DELETE FROM t_dsbd_menu_mapp
+		<where>
+			1 = 1
+			<if test='menu_no != null and !"".equals(menu_no)'>
+			AND menu_no = CAST(#{menu_no} AS INT)
+			</if>
+		</where>
+	</delete>
+	
+	<!-- 대시보드그룹-메뉴 맵핑 정보 등록 -->
+	<insert id="insertDsbdGrMenuMapp" parameterType="layoutBean">
+		INSERT INTO t_dsbd_menu_mapp
+		( menu_no, dsbd_gr_seq )
+		VALUES
+		( CAST(#{menu_no} AS INT), CAST(#{dsbd_seq} AS INT))
+	</insert>
+	
+	<!-- 대시보드-메뉴 맵핑 정보 등록 -->
+	<insert id="insertDsbdMenuMapp" parameterType="layoutBean">
+		INSERT INTO t_dsbd_menu_mapp
+		( menu_no, dsbd_seq )
+		VALUES
+		( CAST(#{menu_no} AS INT), CAST(#{dsbd_seq} AS INT))
+	</insert>
+	
+	<!-- 이동할 대상 대시보드정보 조회 -->
+	<select id="getMoveTarget" parameterType="layoutBean" resultType="layoutBean">
+		SELECT t1.menu_no
+			, COALESCE(t2.dsbd_seq, t1.dsbd_gr_seq) AS dsbd_seq
+			, CASE WHEN t3.dsbd_gr_seq IS NOT NULL
+				THEN 'D_GRP'
+				ELSE t2.dsbd_kd
+			END AS dsbd_kd
+			, t2.tree_use_yn 
+			, t2.var_use_yn
+			, t2.dsbd_de_srch_yn
+		FROM t_dsbd_menu_mapp t1
+		LEFT OUTER JOIN t_dsbd_info t2
+			ON t1.dsbd_seq = t2.dsbd_seq
+		LEFT OUTER JOIN t_dsbd_gr_info t3
+			ON t1.dsbd_gr_seq = t3.dsbd_gr_seq
+		WHERE t1.menu_no = #{menu_no}
+		LIMIT 1
+	</select>
+	
+	<!-- 쿼리 Timeout 2분(120000) -->
+	<select id="getQueryData" parameterType="layoutBean" resultType="hmap" timeout="120000">${query_data}</select>
+	
+	
+	
+<!-- 대시보드 구성 (그룹 추가/수정/삭제) -->
+	<!-- 대시보드 그룹 추가 -->
+	<insert id="insertDsbdGr" parameterType="layoutBean" useGeneratedKeys="true" keyProperty="dsbd_gr_seq">
+		INSERT INTO t_dsbd_gr_info
+			( dsbd_gr_nm
+			, rllng_yn, rllng_drc
+			, page_show_tm, rllng_move_tm
+			, gen_by, gen_dt )
+		VALUES
+			( #{dsbd_nm}
+			, #{rllng_yn}, #{rllng_drc}
+			, #{page_show_tm}*1000, #{rllng_move_tm}*1000
+			, #{login_user_id}, now() )
+	</insert>
+	
+	<!-- 대시보드 그룹 수정 -->
+	<update id="updateDsbdGr" parameterType="layoutBean">
+		UPDATE t_dsbd_gr_info
+		   SET dsbd_gr_nm 		= #{dsbd_nm}
+		   	 , rllng_yn 		= #{rllng_yn}
+		   	 , rllng_drc 		= #{rllng_drc}
+		     , page_show_tm 	= #{page_show_tm}*1000
+		     , rllng_move_tm	= #{rllng_move_tm}*1000
+		     , mdfy_by			= #{login_user_id}
+		     , mdfy_dt			= now()
+		 WHERE dsbd_gr_seq = #{dsbd_gr_seq}
+	</update>
+	
+	<!-- 대시보드 그룹 추가 -->
+	<insert id="insertDsbdGrMapp" parameterType="layoutBean">
+		INSERT INTO t_dsbd_gr_mapp
+			( dsbd_seq , dsbd_gr_seq, rllng_ord )
+		VALUES
+			( #{dsbd_seq}, #{dsbd_gr_seq}, #{rllng_ord} )
+	</insert>
+	
+	<!-- 대시보드 그룹 추가 -->
+	<delete id="deleteDsbdGrMapp" parameterType="layoutBean">
+		DELETE FROM t_dsbd_gr_mapp
+		<where>
+			<if test='dsbd_gr_seq != null and !"".equals(dsbd_gr_seq)'>
+			AND dsbd_gr_seq = #{dsbd_gr_seq}
+			</if>
+			<if test='dsbd_gr_seq == null and dsbd_seq != null and !"".equals(dsbd_seq)'>
+			AND dsbd_seq = #{dsbd_seq}
+			</if>
+		</where>
+	</delete>
+	
+	
+	<!-- 대시보드 복제 -->
+	<insert id="copyDsbd" parameterType="layoutBean" useGeneratedKeys="true" keyProperty="dsbd_seq">
+		INSERT INTO t_dsbd_info (
+			dsbd_nm
+			, dsbd_kd
+			, dsbd_rfsh_interval
+			, tree_use_yn
+			, dsbd_de_srch_yn
+			, var_use_yn
+			, gen_by
+		) 
+		SELECT CONCAT('Copy of ', dsbd_nm) 
+			 , dsbd_kd
+			 , dsbd_rfsh_interval
+			 , tree_use_yn
+			 , dsbd_de_srch_yn
+			 , var_use_yn
+			 , #{login_user_id}
+		  FROM t_dsbd_info
+		 WHERE dsbd_seq = #{dsbd_seq_org}
+	</insert>
+	
+	<!-- 대시보드 패널 매핑 복제 -->
+	<insert id="copyDsbdPnlMapp" parameterType="hmap">
+		INSERT INTO t_dsbd_pnl_mapp (
+			dsbd_seq
+			, pnl_seq
+			, pnl_x_crdnt
+			, pnl_y_crdnt
+			, pnl_wdth
+			, pnl_hght
+		)
+		SELECT #{dsbd_seq}
+			 , pnl_seq
+			 , pnl_x_crdnt
+			 , pnl_y_crdnt
+			 , pnl_wdth
+			 , pnl_hght
+		  FROM t_dsbd_pnl_mapp
+		 WHERE dsbd_seq = #{dsbd_seq_org}
+	</insert>
+
+	<!-- 대시보드 그룹 복제 -->
+	<insert id="copyDsbdGr" parameterType="layoutBean" useGeneratedKeys="true" keyProperty="dsbd_gr_seq">
+		INSERT INTO t_dsbd_gr_info
+			( dsbd_gr_nm
+			, rllng_yn, rllng_drc
+			, page_show_tm, rllng_move_tm
+			, gen_by, gen_dt )
+		SELECT CONCAT('Copy of ', dsbd_gr_nm) 
+			 , rllng_yn, rllng_drc
+			 , page_show_tm, rllng_move_tm
+			 , #{login_user_id}, now()
+		  FROM t_dsbd_gr_info
+		 WHERE dsbd_gr_seq = #{dsbd_seq_org}
+	</insert>
+	
+	<!-- 대시보드 그룹 추가 -->
+	<insert id="copyDsbdGrMapp" parameterType="layoutBean">
+		INSERT INTO t_dsbd_gr_mapp
+			( dsbd_seq , dsbd_gr_seq, rllng_ord )
+		SELECT dsbd_seq , #{dsbd_gr_seq}, rllng_ord
+		  FROM t_dsbd_gr_mapp
+		 WHERE dsbd_gr_seq = #{dsbd_seq_org}
+	</insert>
+	<!-- 대시보드 구성 (그룹 추가/수정/삭제) -->
+	
+		
+	<!-- get Device List -->
+	<select id="getDvcList" parameterType="layoutBean" resultType="layoutBean">
+		SELECT  a1.dvc_seq
+			  , a1.dvc_id
+			  , a1.dvc_nm
+			  , a1.dvc_type
+			  , a1.use_yn
+			  , a2.tree_nm
+			  <if test='dsbd_seq != null and !"".equals(dsbd_seq)'>
+			  , CASE WHEN 
+			  		(SELECT count(*) FROM T_DSBD_TREE_MAPP WHERE dsbd_seq = #{dsbd_seq} AND dvc_seq = a1.dvc_seq) > 0 
+			  	THEN 'Y'
+			  		ELSE 'N'
+			  	END as checked
+			  </if>
+		FROM T_DVC_INFO a1
+		LEFT JOIN t_tree_info a2
+			ON a1.dvc_seq = a2.dvc_seq
+	</select>
+	
+	<!-- Insert Dvc Mapping -->
+	<insert id="insertDvcMapp" parameterType="layoutBean">
+		INSERT INTO T_DSBD_TREE_MAPP (dsbd_seq, dvc_seq) VALUES (#{dsbd_seq}, #{dvc_seq})
+	</insert>
+	
+	<!-- Insert Var Mapping -->
+	<insert id="insertVarMapp" parameterType="layoutBean">
+		INSERT INTO T_DSBD_VAR_MAPP (dsbd_seq, var_seq) VALUES (#{dsbd_seq}, #{var_seq})
+	</insert>
+	
+	<!-- Delete Dvc Mapping -->
+	<delete id="deleteDvcMapp" parameterType="layoutBean">
+		DELETE FROM T_DSBD_TREE_MAPP WHERE dsbd_seq = #{dsbd_seq}
+	</delete>
+	
+	<!-- Delete Var Mapping -->
+	<delete id="deleteVarMapp" parameterType="layoutBean">
+		DELETE FROM T_DSBD_VAR_MAPP WHERE dsbd_seq = #{dsbd_seq}
+	</delete>
+
+</mapper>

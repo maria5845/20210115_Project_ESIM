@@ -1,0 +1,114 @@
+package com.tectone.web.model;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.web.multipart.MultipartFile;
+
+import lombok.Data;
+
+@Data
+public class CustomBean extends CommonBean{
+	
+	private String sdate;
+	private String edate;
+	private String stime;
+	private String etime;
+	private Map<String, Object> search_type;	
+	private String dvc_id;
+	private String var_id;
+	private String var_desc;
+	private String plc_id;
+	
+	private Integer history_seq;
+	private Float top1;
+	private Float top2;
+	private Float top3;
+	private Float top4;
+	private Float top5;
+	private Float back1;
+	private Float back2;
+	private Float back3;
+	private Float back4;
+	private Float back5;
+	private String history_desc;
+	
+	private String gubun;
+	private String change_reason;
+	private Float level_os;
+	private Float level_ds;
+	private Float z_axis_os;
+	private Float z_axis_ds;
+	private String var_gr;
+	private String var_nm;
+	
+	private String data_tm;
+	private String data_val;
+	private String dvc_id_str;
+	private String var_id_str;
+	
+	private String detail_type;
+	private MultipartFile file;
+	private String file_nm;
+	private String path;
+	private String rpath;
+	private String item_nm;
+	
+	private String plc_no;
+	private String err_code;
+	private String hmi_no;
+	private String err_desc;
+	private String err_desc_file_nm;
+	private String err_desc_file_path;
+	private String err_rsltn;
+	private String tag;
+	private List<ErrorResolutionBean> errRsltnBean ;
+	private List<FileBean> descFileList;
+	private List<FileBean> excepList;
+	private List<Map<String, Object>> sectionGrid;
+	private List<Map<String, Object>> eqmObjGrid;
+	private List<Map<String, Object>> eqmUserAlarmGrid;
+	private boolean restartAgent;
+	
+	private String last_tab;	
+	private Map<String, Object> var_list;	
+	
+	private String request_url;
+	private String parent_url;
+	
+	//default value
+	private String loadfactor_type="LOAD_FACTOR";
+	private String tree_nm="CWA_PKG4";
+	private String view_type;
+	
+	private Integer ver_seq;
+	private String service_type;
+	private String ver;
+	private String deploy_type;
+	private String patch_file_path;
+	private String ver_desc;
+	
+	private Integer deploy_seq;
+	private String pie_id;
+	private String pie_ip;
+	private String deploy_ver;
+	private String version_txt_cntx;
+	private String deploy_state;
+	private String deploy_dt;
+	private String gen_by;
+	private String gen_dt;
+	
+	private String cim_ver;
+	private String web_ver;
+	private String stat_ver;
+	private String alarm_ver;
+	
+	private String new_cim_ver;
+	private String new_web_ver;
+	private String new_stat_ver;
+	private String new_alarm_ver;
+	private String new_mongo_ver;
+	private String new_addr_ver;
+	
+	private List<String> dvc_list;
+}

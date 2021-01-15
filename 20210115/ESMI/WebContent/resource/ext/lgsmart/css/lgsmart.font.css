@@ -1,0 +1,23 @@
+@font-face {
+  font-family: 'LGSmHaR';
+  src: url("../webfont/LGSmHaR.eot");
+  src: url("../webfont/LGSmHaR.eot?#iefix") format("embedded-opentype"), url("../webfont/LGSmHaR.woff") format("woff"), url("../webfont/LGSmHaR.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: 'LGSmHaSB';
+  src: url("../webfont/LGSmHaSB.eot");
+  src: url("../webfont/LGSmHaSB.eot?#iefix") format("embedded-opentype"), url("../webfont/LGSmHaSB.woff") format("woff"), url("../webfont/LGSmHaSB.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: 'LGSmHaB';
+  src: url("../webfont/LGSmHaB.eot");
+  src: url("../webfont/LGSmHaB.eot?#iefix") format("embedded-opentype"), url("../webfont/LGSmHaB.woff") format("woff"), url("../webfont/LGSmHaB.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: 'LGSmHaL';
+  src: url("../webfont/LGSmHaL.eot");
+  src: url("../webfont/LGSmHaL.eot?#iefix") format("embedded-opentype"), url("../webfont/LGSmHaL.woff") format("woff"), url("../webfont/LGSmHaL.ttf") format("truetype");
+}

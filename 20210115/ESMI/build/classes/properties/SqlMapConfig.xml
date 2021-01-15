@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN" "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <typeAliases>
+		<typeAlias alias="hmap" type="java.util.HashMap" />
+		<typeAlias alias="map" type="java.util.Map" />
+		<typeAlias alias="list" type="java.util.List" />
+	
+		<!-- common -->
+		<typeAlias alias="alarmBean" type="com.tectone.web.model.AlarmBean" />
+		<typeAlias alias="commonBean" type="com.tectone.web.model.CommonBean" />
+		<typeAlias alias="menuBean" type="com.tectone.web.model.MenuBean" />
+		<typeAlias alias="userAuthGrBean" type="com.tectone.web.model.UserAuthGrBean" />
+		<typeAlias alias="userInfoBean" type="com.tectone.web.model.UserInfoBean" />
+		<typeAlias alias="cmcdBean" type="com.tectone.web.model.CmcdBean" />
+		<typeAlias alias="deviceBean" type="com.tectone.web.model.DeviceBean" />
+		<typeAlias alias="langBean" type="com.tectone.web.model.LangBean" />
+		<typeAlias alias="layoutBean" type="com.tectone.web.model.LayoutBean" />
+		<typeAlias alias="dataBean" type="com.tectone.web.model.DataBean" />
+		<typeAlias alias="policyBean" type="com.tectone.web.model.PolicyBean" />
+		<typeAlias alias="paramBean" type="com.tectone.web.model.ParamBean" />
+		<typeAlias alias="helperBean" type="com.tectone.web.model.HelperBean" />
+		<typeAlias alias="treeInfoBean" type="com.tectone.web.model.TreeInfoBean" />
+		<typeAlias alias="alarmBean" type="com.tectone.web.model.AlarmBean" />
+		<typeAlias alias="alarmRuleCondBean" type="com.tectone.web.model.AlarmRuleCondBean" />
+		
+		
+		<typeAlias alias="pmngReportBean" type="com.tectone.web.model.PmngReportBean" />
+		<!-- Custom 대시보드 공통 -->
+		<typeAlias alias="customBean" type="com.tectone.web.model.CustomBean" />
+		
+		<!-- API용 -->
+		<typeAlias alias="apiBean" type="com.tectone.web.model.APIBean" />
+	</typeAliases>
+ 
+    <typeHandlers>
+        <typeHandler handler="org.apache.ibatis.type.SqlDateTypeHandler" javaType="java.sql.Date" jdbcType="DATE"/>
+    </typeHandlers>
+ 
+</configuration>
+
